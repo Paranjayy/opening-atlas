@@ -468,7 +468,7 @@ function App() {
     const mistake = openMistakes[0]
     const phase = leastTrained.id
     return [
-      retrieval ? { id: 'retrieval', tag: 'RECALL', title: retrieval.title, detail: retrieval.detail, action: 'Review due card', page: retrieval.kind === 'opening' ? 'openings' : 'practice', target: retrieval.kind === 'opening' ? 'study' : retrieval.kind === 'endgame' ? 'endgame-route' : retrieval.kind === 'planning' ? 'planning-compass' : 'game-lab', area: retrieval.kind === 'opening' ? 'opening' : retrieval.kind === 'endgame' ? 'end' : retrieval.kind === 'planning' ? 'middle' : phase, retrieval } : { id: 'repertoire', tag: 'OPENING', title: savedOpenings[0] ? openings.find((item) => item.id === savedOpenings[0])?.name || 'Your repertoire' : 'Choose one opening', detail: 'Train one line until you can state its plan and defensive idea.', action: 'Open repertoire', page: 'openings', target: 'study', area: 'opening' },
+      retrieval ? { id: 'retrieval', tag: 'RECALL', title: retrieval.title, detail: retrieval.detail, action: 'Review due card', page: retrieval.kind === 'opening' ? 'openings' : 'practice', target: retrieval.kind === 'opening' ? 'study' : retrieval.kind === 'endgame' ? 'endgame-route' : retrieval.kind === 'planning' ? 'planning-compass' : retrieval.kind === 'tactic' ? 'tactics-compass' : 'game-lab', area: retrieval.kind === 'opening' ? 'opening' : retrieval.kind === 'endgame' ? 'end' : retrieval.kind === 'planning' ? 'middle' : retrieval.kind === 'tactic' ? 'tactics' : phase, retrieval } : { id: 'repertoire', tag: 'OPENING', title: savedOpenings[0] ? openings.find((item) => item.id === savedOpenings[0])?.name || 'Your repertoire' : 'Choose one opening', detail: 'Train one line until you can state its plan and defensive idea.', action: 'Open repertoire', page: 'openings', target: 'study', area: 'opening' },
       mistake ? { id: 'repair', tag: 'REPAIR', title: mistake.title, detail: mistake.detail, action: 'Revisit miss', page: mistake.area === 'opening' ? 'openings' : 'practice', target: mistake.area === 'opening' ? 'study' : mistake.area === 'lab' ? 'game-lab' : 'puzzle-zone', area: mistake.area === 'opening' ? 'opening' : mistake.area === 'lab' ? phase : 'tactics', mistake } : { id: 'tactics', tag: 'CALCULATE', title: 'Daily tactical pulse', detail: 'Work from checks to captures to threats before you touch a piece.', action: 'Solve the puzzle', page: 'practice', target: 'puzzle-zone', area: 'tactics' },
       { id: 'phase', tag: 'BALANCE', title: `15 minutes of ${leastTrained.label}`, detail: leastTrained.cue, action: 'Train this phase', page: leastTrained.id === 'opening' ? 'openings' : 'practice', target: leastTrained.id === 'opening' ? 'study' : leastTrained.id === 'middle' ? 'game-lab' : leastTrained.id === 'end' ? 'endgame-route' : 'tactics-compass', area: leastTrained.id },
     ]
@@ -559,6 +559,7 @@ function App() {
     if (item.kind === 'opening') selectOpening(item.sourceId)
     else if (item.kind === 'endgame') { setActiveEndgame(item.sourceId); navigatePractice('endgames') }
     else if (item.kind === 'planning') { setActivePlanningLens(item.sourceId); navigatePractice('middlegame') }
+    else if (item.kind === 'tactic') { setActivePattern(item.sourceId); navigatePractice('tactics') }
     else { setActiveLab(item.sourceId); navigate('practice', 'game-lab') }
   }
   function recordMistake(item) {
@@ -879,8 +880,11 @@ function App() {
   }
   function togglePattern(id) {
     setReviewedPatterns((current) => {
-      const next = current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+      const reviewed = current.includes(id)
+      const next = reviewed ? current.filter((item) => item !== id) : [...current, id]
       localStorage.setItem('atlas-patterns', JSON.stringify(next))
+      const pattern = tacticPatterns.find((item) => item.id === id)
+      if (!reviewed && pattern) queueRevision({ kind: 'tactic', sourceId: pattern.id, title: pattern.title, detail: `Before calculating, scan for this signal: ${pattern.cue}` })
       return next
     })
   }
