@@ -13,7 +13,7 @@ export default async function handler(req, res) {
       response.json(),
       fetch(`https://lichess.org/api/user/${encodeURIComponent(username)}/rating-history`, {
         headers: { Accept: 'application/json', 'User-Agent': 'Opening-Atlas/1.0' },
-      }).then((ratingResponse) => ratingResponse.ok ? ratingResponse.json() : []),
+      }).then((ratingResponse) => ratingResponse.ok ? ratingResponse.json() : []).catch(() => []),
     ])
     const perfs = Object.fromEntries(['bullet', 'blitz', 'rapid', 'classical', 'puzzle'].flatMap((key) => data.perfs?.[key]?.games || data.perfs?.[key]?.rating ? [[key, data.perfs[key]]] : []))
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=3600')
