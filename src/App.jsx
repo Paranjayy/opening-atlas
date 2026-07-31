@@ -76,6 +76,12 @@ const openingFromLocation = () => {
   const [, openingId] = window.location.pathname.split('/').filter(Boolean)
   return openings.some((opening) => opening.id === openingId) ? openingId : 'sicilian'
 }
+const sharedAnalysisFromLocation = () => {
+  if (pageFromLocation() !== 'analysis') return null
+  const fen = new URLSearchParams(window.location.search).get('fen')
+  if (!fen) return null
+  try { return { fen: new Chess(fen).fen(), label: 'Shared position' } } catch { return null }
+}
 
 const gameLabs = [
   { id: 'middle', label: '02 / MIDDLEGAME', title: 'Central tension', eyebrow: 'MIDDLEGAME LAB', fen: 'r1bq1rk1/pp1nbppp/2p1pn2/3p4/2PP4/2N1PN2/PPQNBPPP/R3K2R w KQ - 0 8', answer: 'e4', mission: 'Before calculating, name the pawn break that changes the position.', focus: ['Identify the tension', 'Find the worst-placed piece', 'Calculate forcing replies first'], prompt: 'White has more space. Is e4 or cxd5 the break that actually improves the pieces?', insight: 'Exactly. e4 claims the centre while opening lines for White’s pieces. The point is not to trade tension automatically—it is to make Black react to your space.' },
@@ -229,7 +235,7 @@ function App() {
   const [puzzleSelected, setPuzzleSelected] = useState(null)
   const [puzzleFeedback, setPuzzleFeedback] = useState('Load the position and find the forcing move.')
   const [engine, setEngine] = useState({ status: 'loading', pvs: [] })
-  const [analysisPosition, setAnalysisPosition] = useState(null)
+  const [analysisPosition, setAnalysisPosition] = useState(sharedAnalysisFromLocation)
   const [analysisSelected, setAnalysisSelected] = useState(null)
   const [analysisFeedback, setAnalysisFeedback] = useState('Choose a piece, then test the candidate move you would actually play.')
   const [fenDraft, setFenDraft] = useState('')
@@ -581,7 +587,7 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyboard)
   }, [opening.moves.length, previousMove, nextLineMove, flipBoard, commandOpen])
   useEffect(() => {
-    const syncPage = () => { setPage(pageFromLocation()); setOpeningId(openingFromLocation()) }
+    const syncPage = () => { setPage(pageFromLocation()); setOpeningId(openingFromLocation()); setAnalysisPosition(sharedAnalysisFromLocation()) }
     window.addEventListener('popstate', syncPage)
     return () => window.removeEventListener('popstate', syncPage)
   }, [])
@@ -814,9 +820,12 @@ function App() {
     try {
       const position = new Chess(fen.trim())
       setAnalysisPosition({ fen: position.fen(), label })
+      const pathname = `/analysis?fen=${encodeURIComponent(position.fen())}`
+      if (window.location.pathname + window.location.search !== pathname) window.history.pushState({}, '', pathname)
       setFenDraft(position.fen())
       setFenFeedback(`Loaded ${label}. Database, engine, and tablebase checks are now pointed at this position.`)
-      navigate('analysis', 'position-desk')
+      setPage('analysis')
+      requestAnimationFrame(() => document.querySelector('#position-desk')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
     } catch {
       setFenFeedback('That FEN is not a legal chess position. Include all six FEN fields, then try again.')
     }
