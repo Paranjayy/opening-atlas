@@ -72,6 +72,10 @@ const pageFromLocation = () => {
   const page = window.location.pathname.split('/').filter(Boolean)[0] || 'home'
   return workspacePages.includes(page) ? page : 'home'
 }
+const openingFromLocation = () => {
+  const [, openingId] = window.location.pathname.split('/').filter(Boolean)
+  return openings.some((opening) => opening.id === openingId) ? openingId : 'sicilian'
+}
 
 const gameLabs = [
   { id: 'middle', label: '02 / MIDDLEGAME', title: 'Central tension', eyebrow: 'MIDDLEGAME LAB', fen: 'r1bq1rk1/pp1nbppp/2p1pn2/3p4/2PP4/2N1PN2/PPQNBPPP/R3K2R w KQ - 0 8', answer: 'e4', mission: 'Before calculating, name the pawn break that changes the position.', focus: ['Identify the tension', 'Find the worst-placed piece', 'Calculate forcing replies first'], prompt: 'White has more space. Is e4 or cxd5 the break that actually improves the pieces?', insight: 'Exactly. e4 claims the centre while opening lines for White’s pieces. The point is not to trade tension automatically—it is to make Black react to your space.' },
@@ -184,7 +188,7 @@ function App() {
   const [page, setPage] = useState(pageFromLocation)
   const [commandOpen, setCommandOpen] = useState(false)
   const [commandQuery, setCommandQuery] = useState('')
-  const [openingId, setOpeningId] = useState('sicilian')
+  const [openingId, setOpeningId] = useState(openingFromLocation)
   const [ply, setPly] = useState(8)
   const [mode, setMode] = useState('study')
   const [selected, setSelected] = useState(null)
@@ -440,7 +444,17 @@ function App() {
       else window.scrollTo({ top: 0, behavior: 'smooth' })
     })
   }
-  function selectOpening(id) { setOpeningId(id); setPly(0); setMode('study'); setSelected(null); setFeedback('New line loaded. Walk through the opening or start a drill.'); navigate('openings', 'study') }
+  function selectOpening(id) {
+    const pathname = `/openings/${id}`
+    if (window.location.pathname !== pathname) window.history.pushState({}, '', pathname)
+    setPage('openings')
+    setOpeningId(id)
+    setPly(0)
+    setMode('study')
+    setSelected(null)
+    setFeedback('New line loaded. Walk through the opening or start a drill.')
+    requestAnimationFrame(() => document.querySelector('#study')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
   function queueRevision({ kind, sourceId, title, detail }) {
     setRevisionItems((current) => {
       if (current.some((item) => item.kind === kind && item.sourceId === sourceId)) return current
@@ -567,7 +581,7 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyboard)
   }, [opening.moves.length, previousMove, nextLineMove, flipBoard, commandOpen])
   useEffect(() => {
-    const syncPage = () => setPage(pageFromLocation())
+    const syncPage = () => { setPage(pageFromLocation()); setOpeningId(openingFromLocation()) }
     window.addEventListener('popstate', syncPage)
     return () => window.removeEventListener('popstate', syncPage)
   }, [])
