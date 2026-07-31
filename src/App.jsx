@@ -246,6 +246,12 @@ function App() {
       return saved.date === dayStamp() && Array.isArray(saved.items) ? saved.items : []
     } catch { return [] }
   })
+  const [lifetimeStats, setLifetimeStats] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('atlas-lifetime-stats') || '{}')
+      return saved && typeof saved === 'object' ? saved : {}
+    } catch { return {} }
+  })
   const opening = openings.find((item) => item.id === openingId)
   const game = useMemo(() => { const g = new Chess(); opening.moves.slice(0, ply).forEach((move) => g.move(move)); return g }, [opening, ply])
   const previous = useMemo(() => {
@@ -420,6 +426,13 @@ function App() {
       return next
     })
   }
+  function bumpStat(id) {
+    setLifetimeStats((current) => {
+      const next = { ...current, [id]: (current[id] || 0) + 1 }
+      localStorage.setItem('atlas-lifetime-stats', JSON.stringify(next))
+      return next
+    })
+  }
   const previousMove = useCallback(() => { setPly((current) => Math.max(0, current - 1)); setMode('study') }, [])
   const nextLineMove = useCallback(() => { setPly((current) => Math.min(opening.moves.length, current + 1)); setMode('study') }, [opening.moves.length])
   const flipBoard = useCallback(() => { setOrientation((side) => side === 'w' ? 'b' : 'w') }, [])
@@ -509,7 +522,7 @@ function App() {
     const test = new Chess(game.fen())
     try {
       const made = test.move({ from: selected, to: square, promotion: 'q' })
-      if (made.san === nextMove) { setPly((p) => p + 1); setScore((s) => s + 1); setFeedback(`Exactly. ${made.san} is the book move.`) }
+      if (made.san === nextMove) { setPly((p) => p + 1); setScore((s) => s + 1); bumpStat('bookMoves'); setFeedback(`Exactly. ${made.san} is the book move.`) }
       else { setFeedback(`${made.san} is playable, but this drill is looking for ${nextMove}. Try again.`); recordMistake({ area: 'opening', sourceId: opening.id, title: `${opening.name}: ${made.san}`, detail: `The drill expected ${nextMove}. Rebuild the opening’s first plan before replaying this branch.` }) }
     } catch { setFeedback('That piece cannot go there. Follow its legal movement.') }
     setSelected(null)
@@ -541,6 +554,7 @@ function App() {
     setPuzzleFen(test.fen())
     setPuzzleStep(nextStep)
     setPuzzleSelected(null)
+    if (nextStep >= puzzle.puzzle.solution.length) bumpStat('puzzles')
     setPuzzleFeedback(nextStep >= puzzle.puzzle.solution.length ? 'Solved. You found the whole forcing sequence.' : 'Correct. The defender replies—keep calculating.')
   }
   function reviewPgn() {
@@ -672,6 +686,7 @@ function App() {
     }
     setAnalysisSelected(null)
     setAnalysisFeedback(`${made.san} loaded. Compare the database and cloud-engine reply before deciding whether the idea survives.`)
+    bumpStat('candidates')
     openAnalysisPosition(test.fen(), `Candidate move: ${made.san}`)
   }
   function handleLabSquare(square) {
@@ -681,7 +696,7 @@ function App() {
     try {
       const made = test.move({ from: labSelected, to: square, promotion: 'q' })
       setLabSelected(null)
-      if (made.san === lab.answer) { setLabFen(test.fen()); setLabLastMove([made.from, made.to]); setLabSolved(true); setLabFeedback(lab.insight) }
+      if (made.san === lab.answer) { setLabFen(test.fen()); setLabLastMove([made.from, made.to]); setLabSolved(true); bumpStat('labs'); setLabFeedback(lab.insight) }
       else { setLabFeedback(`${made.san} is legal, but pause: ${lab.prompt}`); recordMistake({ area: 'lab', sourceId: lab.id, title: `${lab.title}: ${made.san}`, detail: lab.prompt }) }
     } catch { setLabSelected(null); setLabFeedback('That piece cannot go there. Rebuild the position in your head, then try again.') }
   }
@@ -693,6 +708,7 @@ function App() {
     <section data-workspace="home" className="hero" id="top"><div><p className="eyebrow">THE CHESS LEARNING WORKSPACE</p><h1>Learn the <em>why</em><br />behind your moves.</h1><p className="hero-copy">A focused place to build an opening repertoire, practice plans, review games, and develop endgame technique.</p><button className="hero-cta" onClick={() => navigate('openings')}>Open your repertoire <span>→</span></button></div><div className="hero-note"><p>Today’s rule</p><strong>“Every opening move should buy you a plan.”</strong><div><span>FIRST RANK</span><span>WORKSPACE</span></div></div></section>
     <section className="revision-deck"><div className="revision-heading"><div><p className="eyebrow">MEMORY, NOT MOMENTUM</p><h2>Your next<br /><em>useful recall.</em></h2></div><p>Every saved opening and written lab insight enters a small spaced-review queue. Mark it only after you can explain the idea without looking.</p></div><div className="revision-metrics"><span><b>{dueRevisions.length}</b> due now</span><span><b>{revisionItems.length}</b> concepts held</span><span><b>{upcomingRevisions.length}</b> returning later</span></div><div className="revision-list">{dueRevisions.length ? dueRevisions.slice(0, 4).map((item) => <article key={item.id}><div><span>{item.kind === 'opening' ? 'OPENING RECALL' : 'POSITION RECALL'} · {revisionTiming(item)}</span><h3>{item.title}</h3><p>{item.detail}</p></div><div><button onClick={() => openRevision(item)}>Open board →</button><button onClick={() => completeRevision(item.id)}>I recalled it ✓</button></div></article>) : <div className="revision-empty"><span>♞</span><strong>{revisionItems.length ? 'Nothing urgent. Let the ideas breathe.' : 'Your recall queue is empty.'}</strong><p>{revisionItems.length ? `Next return: ${revisionTiming(upcomingRevisions[0])}.` : 'Save an opening or keep a lab reflection; First Rank will bring it back at the right time.'}</p></div>}</div></section>
     <section className="mistake-ledger"><div><p className="eyebrow">THE MISTAKE BOOK</p><h2>Turn a miss<br /><em>into a map.</em></h2></div><div className="mistake-list">{openMistakes.length ? openMistakes.map((item) => <article key={item.id}><div><span>{item.area === 'opening' ? 'OPENING DRILL' : item.area === 'lab' ? 'GAME LAB' : 'TACTICAL CALCULATION'} · seen {item.seen}×</span><strong>{item.title}</strong><p>{item.detail}</p></div><div><button onClick={() => revisitMistake(item)}>Revisit →</button><button onClick={() => resolveMistake(item.id)}>Cleared ✓</button></div></article>) : <div className="mistake-empty"><span>♜</span><strong>Nothing to repair yet.</strong><p>Miss a legal drill move, lab idea, or tactic and it will land here—ready to be revisited deliberately.</p></div>}</div></section>
+    <section className="boardwork-ledger"><div><p className="eyebrow">YOUR FIRST RANK LEDGER</p><h2>The work<br /><em>adds up.</em></h2><p>These are things you actually did inside First Rank—not a guessed rating, not a vanity streak.</p></div><div className="ledger-grid"><article><span>BOOK MOVES</span><strong>{lifetimeStats.bookMoves || 0}</strong><small>correct moves recalled in drills</small></article><article><span>TACTICS</span><strong>{lifetimeStats.puzzles || 0}</strong><small>daily forcing sequences solved</small></article><article><span>LAB IDEAS</span><strong>{lifetimeStats.labs || 0}</strong><small>middlegame or endgame plans found</small></article><article><span>POSITIONS TESTED</span><strong>{lifetimeStats.candidates || 0}</strong><small>candidate moves sent to analysis</small></article></div></section>
     <section className="home-command"><div><p className="eyebrow">YOUR BOARDWORK</p><h2>One board.<br /><em>One useful job.</em></h2></div><div className="home-routes"><button onClick={() => navigate('openings')}><span>01 · REPERTOIRE</span><strong>Openings</strong><p>{savedOpenings.length ? `${savedOpenings.length} systems saved · continue your line` : 'Choose a system and learn the plan behind it'}</p><i>Go to openings →</i></button><button onClick={() => navigate('practice')}><span>02 · TRAINING</span><strong>Practice</strong><p>Daily tactics, middlegame plans, and endgame technique.</p><i>Start a drill →</i></button><button onClick={() => navigate('review')}><span>03 · FEEDBACK</span><strong>Review</strong><p>{focusItems.length ? `${focusItems.length} focus item${focusItems.length === 1 ? '' : 's'} waiting` : 'Turn your recent game into a concrete training focus'}</p><i>Review a game →</i></button><button onClick={() => navigate('learn')}><span>04 · PROGRAM</span><strong>Learn</strong><p>{journalTotal ? `${journalTotal} minutes logged this week` : `Start with 15 minutes of ${leastTrained.label.toLowerCase()}`}</p><i>See the plan →</i></button></div></section>
     <section data-workspace="openings" className="repertoire-rail" id="repertoire-rail" aria-label="Opening selector"><div className="rail-intro"><div><p className="eyebrow">START HERE · {openings.length} LINES READY</p><strong>Choose your next<br />battlefield.</strong></div><div className="rail-filters"><button className={railFilter === 'All' ? 'active' : ''} onClick={() => setRailFilter('All')}>All systems</button><button className={railFilter === 'WHITE REPERTOIRE' ? 'active' : ''} onClick={() => setRailFilter('WHITE REPERTOIRE')}>As White</button><button className={railFilter === 'BLACK REPERTOIRE' ? 'active' : ''} onClick={() => setRailFilter('BLACK REPERTOIRE')}>As Black</button></div></div><div className="opening-strip">{railOpenings.map((item, index) => <button key={item.id} onClick={() => selectOpening(item.id)} className={item.id === openingId ? 'active' : ''}><span>{String(index + 1).padStart(2, '0')} · {item.eco}</span><b>{item.name}</b><small>{item.category} · {item.tempo}</small><i>{item.id === openingId ? 'In study ↓' : 'Study this →'}</i></button>)}</div></section>
     <section className="opening-pulse"><div><p className="eyebrow">LIVE OPENING PULSE</p><h2>What does the<br /><em>database answer?</em></h2></div><div className="pulse-grid">{openingPulse.status === 'ready' ? pulseMoves.map((row) => <article key={row.id}><span>{row.label}</span><strong>{row.san}</strong><small>{row.name} · {row.move?.winrate ? `${Number(row.move.winrate).toFixed(1)}% White score` : 'live line'}</small></article>) : <p>{openingPulse.status === 'loading' ? 'Reading public opening replies…' : 'Live opening pulse is temporarily unavailable.'}</p>}</div><p className="pulse-source">Public source: <a href="https://www.chessdb.cn/" target="_blank" rel="noreferrer">ChessDB ↗</a> · Replies are a database signal, not a command.</p></section>
