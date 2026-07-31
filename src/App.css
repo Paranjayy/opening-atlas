@@ -148,8 +148,19 @@ nav{height:78px;padding:0 clamp(24px,6vw,104px);display:flex;align-items:center;
 
 /* Opening work gets its own client-like side rails: map left, notation sheet right. */
 .workspace-study-nav{display:none}
-@media(min-width:1401px){
-  .workspace-openings{padding-left:220px}
+/* The catalogue is deliberately separate from a study desk: selecting a system
+   should land on the board, not strand the player above it in a long page. */
+.opening-study-route .repertoire-rail,.opening-study-route .opening-pulse,.opening-study-route .opening-radar,.opening-study-route .repertoire-blueprint,.opening-study-route .repertoire-rhythm,.opening-study-route .library,.opening-study-route .opening-mastery{display:none}
+.opening-catalog-route .repertoire-rail,.opening-catalog-route .opening-pulse,.opening-catalog-route .opening-radar,.opening-catalog-route .study,.opening-catalog-route .notes,.opening-catalog-route .intelligence,.opening-catalog-route .engine-lens,.opening-catalog-route .tablebase-truth,.opening-catalog-route .repertoire-blueprint,.opening-catalog-route .repertoire-rhythm,.opening-catalog-route .opening-mastery{display:none}
+.opening-catalog-route .workspace-study-nav{display:none}
+@media(min-width:1201px){
+  .workspace-openings.opening-study-route{padding-left:220px}
+  .opening-study-route .study{grid-template-columns:minmax(0,620px);justify-content:center;padding:34px 28px 70px;gap:25px}
+  .opening-study-route .study-intro{order:0;grid-column:1;align-items:flex-start;padding-bottom:20px}
+  .opening-study-route .study-intro h2{font-size:42px}
+  .opening-study-route .board-area{order:1;width:100%;max-width:620px}
+  .opening-study-route .repertoire{order:2;width:100%;border-top:1px solid var(--line);padding-top:22px}
+  .opening-study-route .coach{order:3;display:grid;grid-template-columns:90px minmax(0,1fr) 125px;gap:18px;width:100%;border-top:1px solid var(--line);padding-top:22px}
   .workspace-study-nav{position:fixed;z-index:30;top:70px;bottom:0;left:0;width:220px;display:flex;flex-direction:column;overflow-y:auto;background:#17251b;color:#f4eee2;border-right:1px solid #405344}
   .study-nav-title{padding:22px 18px 17px;border-bottom:1px solid #405344}
   .study-nav-title span,.study-nav-title small,.study-nav-switch>span{display:block;font:9px 'DM Mono';letter-spacing:.08em;text-transform:uppercase}
@@ -169,6 +180,11 @@ nav{height:78px;padding:0 clamp(24px,6vw,104px);display:flex;align-items:center;
   .study-nav-switch small{color:#9eb09d;font:9px 'DM Mono'}
   .study-nav-switch strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 17px/.95 'DM Serif Display';letter-spacing:-.02em}
   .study-nav-switch .all-openings{display:block;margin:11px 16px 0;padding:10px 0;border-top:1px solid #405344;color:#e99a71;font:800 9px 'DM Mono';letter-spacing:.06em;text-transform:uppercase}
+}
+
+@media(max-width:1200px){
+  .opening-study-route .study{padding-top:34px}
+  .opening-catalog-route .library{padding-top:clamp(42px,7vw,78px)}
 }
 
 .review-prescription{display:grid;grid-template-columns:minmax(260px,.78fr) minmax(250px,.62fr);justify-content:space-between;gap:clamp(32px,8vw,120px);margin-top:54px;padding:27px 0;border-top:2px solid #c95233;border-bottom:1px solid #a9824c;color:#243329}.review-prescription h3{margin:9px 0 12px;font:400 clamp(33px,4vw,52px)/.9 'DM Serif Display';letter-spacing:-.045em}.review-prescription p{max-width:540px;margin:0;color:#4e5545;font-size:13px;line-height:1.65}.review-prescription>div:last-child{display:grid;align-content:start;justify-items:start;border-left:1px solid #a9824c;padding-left:20px}.review-prescription span{font:9px 'DM Mono';letter-spacing:.07em;text-transform:uppercase;color:#a64a30}.review-prescription strong{margin:9px 0 18px;font:400 28px/.95 'DM Serif Display';letter-spacing:-.03em}.review-prescription button{border:0;background:#203329;color:#f7f0df;padding:12px 14px;font:800 9px 'DM Mono';letter-spacing:.06em;text-transform:uppercase}.review-prescription .save-prescription{margin-top:9px;border:1px solid #75816d;background:transparent;color:#243329}@media(max-width:720px){.review-prescription{display:block;margin-top:42px;padding-block:22px}.review-prescription>div:last-child{margin-top:23px;border-left:0;border-top:1px solid #a9824c;padding:16px 0 0}}
