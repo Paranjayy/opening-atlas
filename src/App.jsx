@@ -194,6 +194,14 @@ const capabilityPaths = [
   { id: 'competitive', number: '03', title: 'Competitive', signal: 'You play regularly and need focused feedback from your own games.', focus: ['Import PGNs', 'Save repeat mistakes', 'Balance your weekly work'], target: '#game-review', action: 'Review your games' },
   { id: 'advanced', number: '04', title: 'Advanced study', signal: 'You can explain a plan and now need to test its concrete limits.', focus: ['Use cloud candidate lines', 'Probe tablebase positions', 'Study your repertoire branches'], target: '#position-desk', action: 'Interrogate positions' },
 ]
+const chessEssentials = [
+  { id: 'goal', title: 'The real objective', detail: 'Checkmate ends the game: the king is in check and has no legal escape. Capturing every piece is not the goal.' },
+  { id: 'checks', title: 'Checks, captures, threats', detail: 'When it is your move, look in that order. It keeps calculation concrete and prevents many one-move misses.' },
+  { id: 'values', title: 'Piece values are a guide', detail: 'Pawn 1, knight/bishop 3, rook 5, queen 9. King safety and activity can matter more than a raw count.' },
+  { id: 'development', title: 'Develop before attacking', detail: 'Bring pieces out, fight for the centre, and get your king safe. An attack with sleeping pieces is usually not an attack.' },
+  { id: 'king', title: 'Your king cannot be traded', detail: 'You may not make a move that leaves your own king in check. This is why pins and discovered attacks matter.' },
+  { id: 'review', title: 'Every game contains a lesson', detail: 'After a game, find one critical decision and state what you would check next time—do not just chase the engine score.' },
+]
 const weekStamp = () => {
   const date = new Date()
   const monday = new Date(date)
@@ -305,6 +313,9 @@ function App() {
   const [activePattern, setActivePattern] = useState('fork')
   const [reviewedPatterns, setReviewedPatterns] = useState(() => {
     try { const saved = JSON.parse(localStorage.getItem('atlas-patterns') || '[]'); return Array.isArray(saved) ? saved : [] } catch { return [] }
+  })
+  const [knownEssentials, setKnownEssentials] = useState(() => {
+    try { const saved = JSON.parse(localStorage.getItem('atlas-chess-essentials') || '[]'); return Array.isArray(saved) ? saved : [] } catch { return [] }
   })
   const [savedOpenings, setSavedOpenings] = useState(() => {
     try { const saved = JSON.parse(localStorage.getItem('atlas-repertoire') || '[]'); return Array.isArray(saved) ? saved : [] } catch { return [] }
@@ -1008,6 +1019,13 @@ function App() {
       return next
     })
   }
+  function toggleEssential(id) {
+    setKnownEssentials((current) => {
+      const next = current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+      localStorage.setItem('atlas-chess-essentials', JSON.stringify(next))
+      return next
+    })
+  }
   function toggleEndgameTechnique(id) {
     const lesson = endgameRoute.find((item) => item.id === id)
     setMasteredEndgames((current) => {
@@ -1090,6 +1108,7 @@ function App() {
       sessionHistory,
       sessionChecks,
       reviewedPatterns,
+      knownEssentials,
       masteredEndgames,
       masteredPlanning,
       labReflections,
@@ -1131,6 +1150,7 @@ function App() {
       setSessionChecks(restoredChecks)
       localStorage.setItem('atlas-session-checks', JSON.stringify({ date: dayStamp(), items: restoredChecks }))
       restore(lists(payload.reviewedPatterns, tacticPatterns.length).filter((id) => tacticPatterns.some((pattern) => pattern.id === id)), setReviewedPatterns, 'atlas-patterns', [])
+      restore(lists(payload.knownEssentials, chessEssentials.length).filter((id) => chessEssentials.some((item) => item.id === id)), setKnownEssentials, 'atlas-chess-essentials', [])
       restore(lists(payload.masteredEndgames, endgameRoute.length).filter((id) => endgameRoute.some((lesson) => lesson.id === id)), setMasteredEndgames, 'atlas-endgame-techniques', [])
       restore(lists(payload.masteredPlanning, planningFramework.length).filter((id) => planningFramework.some((lens) => lens.id === id)), setMasteredPlanning, 'atlas-planning-lenses', [])
       restore(lists(payload.labReflections, 8), setLabReflections, 'atlas-lab-reflections', [])
@@ -1289,6 +1309,7 @@ function App() {
     {page === 'openings' && <section className="opening-mastery" aria-label="Opening drill mastery"><div><p className="eyebrow">REPERTOIRE EVIDENCE</p><h2>Played, not<br /><em>just saved.</em></h2><p>Correct moves and complete recall runs are recorded per opening. A bookmark means you like a line; a completed drill means you can start to use it.</p></div><div className="mastery-ledger">{(savedOpenings.length ? savedOpenings : [opening.id]).slice(0, 6).map((id) => { const item = openings.find((candidate) => candidate.id === id); const record = openingMastery[id] || { correct: 0, completions: 0 }; return <button onClick={() => selectOpening(id)} key={id}><span>{item.eco}</span><strong>{item.name}</strong><div><b>{record.correct}</b><small>correct moves</small><b>{record.completions}</b><small>complete runs</small></div><i>{id === opening.id ? 'On board' : 'Open drill →'}</i></button>})}</div></section>}
     {page === 'review' && reviewDiagnostics && <section className="review-fingerprint" aria-label="Game review fingerprint"><div><p className="eyebrow">GAME FINGERPRINT</p><h2>What the score<br /><em>can prove.</em></h2><p>This is not an engine verdict. It is a factual summary of the game you just loaded—the useful context for deciding what deserves deeper analysis.</p></div><div className="fingerprint-grid"><article><span>LENGTH</span><strong>{reviewDiagnostics.fullMoves}</strong><small>full moves played</small></article><article><span>CAPTURES</span><strong>{reviewDiagnostics.captures}</strong><small>material decisions</small></article><article><span>CHECKS</span><strong>{reviewDiagnostics.checks}</strong><small>forcing moments</small></article><article><span>PAWN MOVES</span><strong>{reviewDiagnostics.pawnMoves}</strong><small>structure commitments</small></article><article><span>CASTLES</span><strong>{reviewDiagnostics.castles}</strong><small>king-safety commitments</small></article></div></section>}
     {page === 'review' && <section className="lichess-game-import" id="lichess-import" aria-label="Import a public Lichess game"><div><p className="eyebrow">PUBLIC LICHESS GAME IMPORT</p><h2>Bring a game<br /><em>straight in.</em></h2><p>Paste a public Lichess game URL or the eight-character game ID. First Rank fetches the PGN, reads it locally, and opens the same decision review.</p></div><div><label htmlFor="lichess-game">PUBLIC GAME URL OR ID</label><div className="game-import-form"><input id="lichess-game" value={lichessGameInput} onChange={(event) => setLichessGameInput(event.target.value)} placeholder="lichess.org/xxxxxxxx" /><button onClick={importLichessGame}>Import game →</button></div><small>No sign-in. Public game data only.</small></div></section>}
+    {page === 'learn' && <section className="chess-essentials" aria-label="Chess fundamentals"><div><p className="eyebrow">STARTING FROM ZERO</p><h2>The rules that<br /><em>make everything work.</em></h2><p>These are the ideas to know before an opening line or an engine score can help. Mark one only when you could explain it to another player.</p><span>{knownEssentials.length} / {chessEssentials.length} retained</span></div><div className="essentials-grid">{chessEssentials.map((item, index) => <button className={knownEssentials.includes(item.id) ? 'known' : ''} onClick={() => toggleEssential(item.id)} key={item.id}><span>{String(index + 1).padStart(2, '0')} · {knownEssentials.includes(item.id) ? 'RETAINED' : 'CORE IDEA'}</span><strong>{item.title}</strong><p>{item.detail}</p><i>{knownEssentials.includes(item.id) ? 'I can explain this ✓' : 'Mark as understood +'}</i></button>)}</div></section>}
     <footer><span>FIRST RANK — PLAY WITH INTENTION</span><span>Pieces: Cburnett set via Lichess · CC BY-SA</span></footer>
   </main>
 }
