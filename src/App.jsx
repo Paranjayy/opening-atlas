@@ -308,6 +308,7 @@ function App() {
     } catch { return { week: weekStamp(), minutes: {} } }
   })
   const [pgnInput, setPgnInput] = useState('')
+  const [lichessGameInput, setLichessGameInput] = useState('')
   const [review, setReview] = useState(null)
   const [reviewPly, setReviewPly] = useState(0)
   const [reviewFeedback, setReviewFeedback] = useState('Paste a PGN to make its final position your next study position.')
@@ -872,12 +873,12 @@ function App() {
     if (nextStep >= puzzle.puzzle.solution.length) bumpStat('puzzles')
     setPuzzleFeedback(nextStep >= puzzle.puzzle.solution.length ? 'Solved. You found the whole forcing sequence.' : 'Correct. The defender replies—keep calculating.')
   }
-  function reviewPgn() {
-    if (!pgnInput.trim()) { setReviewFeedback('Paste a PGN first—moves alone are fine.'); return }
-    if (pgnInput.length > 30000) { setReviewFeedback('Keep the PGN under 30,000 characters for this first-pass review.'); return }
+  function loadReviewPgn(rawPgn) {
+    if (!rawPgn.trim()) { setReviewFeedback('Paste a PGN first—moves alone are fine.'); return }
+    if (rawPgn.length > 30000) { setReviewFeedback('Keep the PGN under 30,000 characters for this first-pass review.'); return }
     try {
       const parsed = new Chess()
-      parsed.loadPgn(pgnInput.trim())
+      parsed.loadPgn(rawPgn.trim())
       const moves = parsed.history({ verbose: true })
       if (!moves.length) throw new Error('No moves found')
       const headers = parsed.getHeaders()
@@ -889,6 +890,17 @@ function App() {
       setReviewPly(moves.length)
       setReviewFeedback(recognition ? `Loaded ${moves.length} plies. Opening recognition: ${recognition.opening.name} (${recognition.opening.eco}) through ${recognition.matched} plies. Now find the first irreversible decision after the book.` : `Loaded ${moves.length} plies. Start by naming the last irreversible decision before asking the engine.`)
     } catch { setReview(null); setReviewFeedback('That PGN could not be read. Export it from your chess site, then paste the full move text here.') }
+  }
+  function reviewPgn() { loadReviewPgn(pgnInput) }
+  function importLichessGame() {
+    const value = lichessGameInput.trim()
+    const gameId = value.match(/(?:lichess\.org\/)?([A-Za-z0-9]{8})(?:\/\w+)?$/)?.[1]
+    if (!gameId) { setReviewFeedback('Paste a public Lichess game URL or its 8-character game ID.'); return }
+    setReviewFeedback('Fetching the public Lichess PGN…')
+    fetch(`/api/lichess-game?gameId=${encodeURIComponent(gameId)}`)
+      .then((response) => response.ok ? response.json() : response.json().then((data) => Promise.reject(new Error(data.error))))
+      .then(({ pgn }) => { setPgnInput(pgn); loadReviewPgn(pgn) })
+      .catch((error) => setReviewFeedback(error.message || 'That Lichess game could not be imported.'))
   }
   function saveFocusItem() {
     const fallback = reviewMove ? `Review ${reviewMove.san}: ${reviewMoment}` : ''
@@ -1225,6 +1237,7 @@ function App() {
     <section className="resource-dock"><div><p className="eyebrow">THE DEEPER TOOLKIT</p><h2>Resources worth<br /><em>having open.</em></h2></div><div className="resource-list">{resourceDock.map((resource) => <a href={resource.href} target="_blank" rel="noreferrer" key={resource.name}><span>{resource.label}</span><strong>{resource.name}</strong><p>{resource.detail}</p><i>Open resource ↗</i></a>)}</div></section>
     {page === 'practice' && <section className="structure-atlas" id="structure-atlas"><div className="structure-heading"><div><p className="eyebrow">PAWN STRUCTURE ATLAS</p><h2>When the pawns<br /><em>tell the plan.</em></h2></div><p>Structures are the chessboard’s long memory. Once you recognize one, you can stop guessing and start looking for the breaks, squares, and piece trades that make sense.</p></div><div className="structure-workspace"><div className="structure-index">{pawnStructures.map((item, index) => <button className={activeStructure === item.id ? 'active' : ''} onClick={() => setActiveStructure(item.id)} key={item.id}><span>{String(index + 1).padStart(2, '0')}</span><strong>{item.title}</strong><small>{item.label}</small></button>)}</div><article className="structure-lesson"><p className="eyebrow">{pawnStructure.label}</p><h3>{pawnStructure.title}</h3><div><span>THE SIGNAL</span><p>{pawnStructure.signal}</p></div><div><span>THE PLAN</span><p>{pawnStructure.plan}</p></div><div><span>KEY BREAKS</span><strong>{pawnStructure.breaks}</strong></div><div><span>WATCH OUT</span><p>{pawnStructure.warning}</p></div><button onClick={() => navigate('analysis', 'position-desk')}>Bring a structure to analysis ↗</button></article></div></section>}
     {page === 'learn' && <section className="study-export"><div><p className="eyebrow">YOUR STUDY, YOURS TO KEEP</p><h2>Take your<br /><em>work with you.</em></h2></div><div><p>Download a private JSON snapshot of your repertoire, field notes, recall queue, patterns, techniques, practice journal, and boardwork history. Nothing is uploaded.</p><div className="snapshot-actions"><button onClick={exportStudySnapshot}>Download my study snapshot <span>↓</span></button><label>Restore a First Rank snapshot<input type="file" accept="application/json,.json" onChange={importStudySnapshot} /></label></div><small className="snapshot-feedback">{snapshotFeedback}</small></div></section>}
+    {page === 'review' && <section className="lichess-game-import" id="lichess-import" aria-label="Import a public Lichess game"><div><p className="eyebrow">PUBLIC LICHESS GAME IMPORT</p><h2>Bring a game<br /><em>straight in.</em></h2><p>Paste a public Lichess game URL or the eight-character game ID. First Rank fetches the PGN, reads it locally, and opens the same decision review.</p></div><div><label htmlFor="lichess-game">PUBLIC GAME URL OR ID</label><div className="game-import-form"><input id="lichess-game" value={lichessGameInput} onChange={(event) => setLichessGameInput(event.target.value)} placeholder="lichess.org/xxxxxxxx" /><button onClick={importLichessGame}>Import game →</button></div><small>No sign-in. Public game data only.</small></div></section>}
     <footer><span>FIRST RANK — PLAY WITH INTENTION</span><span>Pieces: Cburnett set via Lichess · CC BY-SA</span></footer>
   </main>
 }
