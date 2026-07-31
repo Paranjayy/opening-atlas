@@ -17,7 +17,8 @@ async function query(position) {
   const response = await fetch(`https://www.chessdb.cn/cdb.php?action=queryall&board=${encodeURIComponent(position.fen)}`, { headers: { 'User-Agent': 'First-Rank/1.0' } })
   if (!response.ok) throw new Error('ChessDB unavailable')
   const moves = (await response.text()).split('|').filter(Boolean).map(parseMove).filter((move) => /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move.move))
-  return { ...position, move: moves[0] || null }
+  const topTier = moves.filter((move) => move.note?.startsWith('!'))
+  return { ...position, move: moves[0] || null, replyCount: moves.length, topTierCount: topTier.length }
 }
 
 export default async function handler(req, res) {
