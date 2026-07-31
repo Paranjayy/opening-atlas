@@ -194,6 +194,7 @@ function App() {
   const [page, setPage] = useState(pageFromLocation)
   const [commandOpen, setCommandOpen] = useState(false)
   const [commandQuery, setCommandQuery] = useState('')
+  const [commandIndex, setCommandIndex] = useState(0)
   const [openingId, setOpeningId] = useState(openingFromLocation)
   const [ply, setPly] = useState(8)
   const [mode, setMode] = useState('study')
@@ -569,12 +570,18 @@ function App() {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
         setCommandOpen((open) => !open)
+        setCommandIndex(0)
         return
       }
       if (event.key === 'Escape' && commandOpen) { setCommandOpen(false); setCommandQuery(''); return }
+      const key = event.key.toLowerCase()
+      if (commandOpen) {
+        if (key === 'arrowdown') { event.preventDefault(); setCommandIndex((index) => Math.min(Math.max(0, commandItems.length - 1), index + 1)); return }
+        if (key === 'arrowup') { event.preventDefault(); setCommandIndex((index) => Math.max(0, index - 1)); return }
+        if (key === 'enter') { event.preventDefault(); (commandItems[commandIndex] || commandItems[0])?.run(); return }
+      }
       const tag = event.target.tagName
       if (event.metaKey || event.ctrlKey || event.altKey || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || event.target.isContentEditable) return
-      const key = event.key.toLowerCase()
       const actions = {
         arrowleft: previousMove, h: previousMove, a: previousMove,
         arrowright: nextLineMove, l: nextLineMove, d: nextLineMove,
@@ -586,7 +593,7 @@ function App() {
     }
     window.addEventListener('keydown', handleKeyboard)
     return () => window.removeEventListener('keydown', handleKeyboard)
-  }, [opening.moves.length, previousMove, nextLineMove, flipBoard, commandOpen])
+  }, [opening.moves.length, previousMove, nextLineMove, flipBoard, commandOpen, commandItems, commandIndex])
   useEffect(() => {
     const syncPage = () => { setPage(pageFromLocation()); setOpeningId(openingFromLocation()); setAnalysisPosition(sharedAnalysisFromLocation()) }
     window.addEventListener('popstate', syncPage)
