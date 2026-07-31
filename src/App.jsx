@@ -56,6 +56,7 @@ const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
 const pieceName = { p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king' }
 const pieceSrc = (piece) => `https://lichess1.org/assets/piece/cburnett/${piece.color === 'w' ? 'w' : 'b'}${piece.type.toUpperCase()}.svg`
 const workspacePages = ['home', 'openings', 'practice', 'analysis', 'review', 'learn']
+const revisionIntervals = [1, 3, 7, 14, 30]
 const pageFromLocation = () => {
   const page = window.location.pathname.split('/').filter(Boolean)[0] || 'home'
   return workspacePages.includes(page) ? page : 'home'
@@ -199,6 +200,9 @@ function App() {
   const [savedOpenings, setSavedOpenings] = useState(() => {
     try { const saved = JSON.parse(localStorage.getItem('atlas-repertoire') || '[]'); return Array.isArray(saved) ? saved : [] } catch { return [] }
   })
+  const [revisionItems, setRevisionItems] = useState(() => {
+    try { const saved = JSON.parse(localStorage.getItem('atlas-revision-items') || '[]'); return Array.isArray(saved) ? saved : [] } catch { return [] }
+  })
   const [journal, setJournal] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('atlas-journal') || '{}')
@@ -270,6 +274,8 @@ function App() {
   const visibleOpenings = openings.filter((item) => (filter === 'All' || item.category === filter) && item.name.toLowerCase().includes(query.toLowerCase()))
   const railOpenings = openings.filter((item) => railFilter === 'All' || item.tag === railFilter)
   const repertoireQueue = useMemo(() => savedOpenings.map((id) => openings.find((item) => item.id === id)).filter(Boolean).slice(0, 4), [savedOpenings])
+  const dueRevisions = useMemo(() => revisionItems.filter((item) => new Date(item.dueAt).getTime() <= Date.now()).sort((a, b) => new Date(a.dueAt) - new Date(b.dueAt)), [revisionItems])
+  const upcomingRevisions = useMemo(() => revisionItems.filter((item) => new Date(item.dueAt).getTime() > Date.now()).sort((a, b) => new Date(a.dueAt) - new Date(b.dueAt)), [revisionItems])
   const journalTotal = Object.values(journal.minutes).reduce((total, minutes) => total + minutes, 0)
   const leastTrained = journalAreas.reduce((least, area) => (journal.minutes[area.id] || 0) < (journal.minutes[least.id] || 0) ? area : least, journalAreas[0])
   function navigate(nextPage, target) {
@@ -282,6 +288,36 @@ function App() {
     })
   }
   function selectOpening(id) { setOpeningId(id); setPly(0); setMode('study'); setSelected(null); setFeedback('New line loaded. Walk through the opening or start a drill.'); navigate('openings', 'study') }
+  function queueRevision({ kind, sourceId, title, detail }) {
+    setRevisionItems((current) => {
+      if (current.some((item) => item.kind === kind && item.sourceId === sourceId)) return current
+      const next = [{ id: `${kind}-${sourceId}`, kind, sourceId, title, detail, interval: 0, reps: 0, dueAt: new Date().toISOString(), createdAt: new Date().toISOString() }, ...current].slice(0, 30)
+      localStorage.setItem('atlas-revision-items', JSON.stringify(next))
+      return next
+    })
+  }
+  function completeRevision(id) {
+    setRevisionItems((current) => {
+      const next = current.map((item) => {
+        if (item.id !== id) return item
+        const interval = Math.min(item.interval + 1, revisionIntervals.length - 1)
+        const dueAt = new Date(Date.now() + revisionIntervals[interval] * 86400000).toISOString()
+        return { ...item, interval, reps: item.reps + 1, dueAt, lastReviewedAt: new Date().toISOString() }
+      })
+      localStorage.setItem('atlas-revision-items', JSON.stringify(next))
+      return next
+    })
+  }
+  function openRevision(item) {
+    if (item.kind === 'opening') selectOpening(item.sourceId)
+    else { setActiveLab(item.sourceId); navigate('practice', 'game-lab') }
+  }
+  function revisionTiming(item) {
+    const remaining = new Date(item.dueAt).getTime() - Date.now()
+    if (remaining <= 0) return 'Due now'
+    const days = Math.ceil(remaining / 86400000)
+    return days === 1 ? 'Tomorrow' : `In ${days} days`
+  }
   function toggleTheme() { const next = theme === 'light' ? 'dark' : 'light'; setTheme(next); localStorage.setItem('atlas-theme', next) }
   function toggleTrack(id) {
     setCompletedTracks((current) => {
@@ -446,6 +482,7 @@ function App() {
       localStorage.setItem('atlas-lab-reflections', JSON.stringify(next))
       return next
     })
+    queueRevision({ kind: 'lab', sourceId: lab.id, title: lab.title, detail: 'Explain the position’s idea before replaying the move.' })
     setLabReflection('')
   }
   function removeFocusItem(id) {
@@ -469,11 +506,22 @@ function App() {
     })
   }
   function toggleRepertoire(id) {
+    const isSaved = savedOpenings.includes(id)
     setSavedOpenings((current) => {
       const next = current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
       localStorage.setItem('atlas-repertoire', JSON.stringify(next))
       return next
     })
+    if (isSaved) {
+      setRevisionItems((current) => {
+        const next = current.filter((item) => !(item.kind === 'opening' && item.sourceId === id))
+        localStorage.setItem('atlas-revision-items', JSON.stringify(next))
+        return next
+      })
+    } else {
+      const openingToReview = openings.find((item) => item.id === id)
+      if (openingToReview) queueRevision({ kind: 'opening', sourceId: id, title: openingToReview.name, detail: 'Replay the line, then state the first plan and the defensive idea.' })
+    }
   }
   function logPractice(id) {
     setJournal((current) => {
@@ -513,6 +561,7 @@ function App() {
     <nav className="workspace-nav"><button className="brand" onClick={() => navigate('home')}><span>♞</span> first<span>rank</span></button><div className="nav-links">{[['home', 'Home'], ['openings', 'Openings'], ['practice', 'Practice'], ['analysis', 'Analysis'], ['review', 'Review'], ['learn', 'Learn']].map(([id, label]) => <button className={page === id ? 'active' : ''} onClick={() => navigate(id)} key={id}>{label}</button>)}</div><div className="nav-utility"><button className="theme-toggle" onClick={toggleTheme} aria-label="Toggle color theme">{theme === 'light' ? '◐ Dark' : '◑ Light'}</button><button className="streak">⚡ Learn daily</button></div></nav>
     <aside className="quick-rail" aria-label="Workspace navigation"><span>FIRST RANK</span>{[['home', 'Home', '01'], ['openings', 'Openings', '02'], ['practice', 'Practice', '03'], ['analysis', 'Analysis', '04'], ['review', 'Review', '05'], ['learn', 'Learn', '06']].map(([id, label, number]) => <button className={page === id ? 'active' : ''} onClick={() => navigate(id)} key={id}><b>{number}</b><i>{label}</i></button>)}</aside>
     <section data-workspace="home" className="hero" id="top"><div><p className="eyebrow">THE CHESS LEARNING WORKSPACE</p><h1>Learn the <em>why</em><br />behind your moves.</h1><p className="hero-copy">A focused place to build an opening repertoire, practice plans, review games, and develop endgame technique.</p><button className="hero-cta" onClick={() => navigate('openings')}>Open your repertoire <span>→</span></button></div><div className="hero-note"><p>Today’s rule</p><strong>“Every opening move should buy you a plan.”</strong><div><span>FIRST RANK</span><span>WORKSPACE</span></div></div></section>
+    <section className="revision-deck"><div className="revision-heading"><div><p className="eyebrow">MEMORY, NOT MOMENTUM</p><h2>Your next<br /><em>useful recall.</em></h2></div><p>Every saved opening and written lab insight enters a small spaced-review queue. Mark it only after you can explain the idea without looking.</p></div><div className="revision-metrics"><span><b>{dueRevisions.length}</b> due now</span><span><b>{revisionItems.length}</b> concepts held</span><span><b>{upcomingRevisions.length}</b> returning later</span></div><div className="revision-list">{dueRevisions.length ? dueRevisions.slice(0, 4).map((item) => <article key={item.id}><div><span>{item.kind === 'opening' ? 'OPENING RECALL' : 'POSITION RECALL'} · {revisionTiming(item)}</span><h3>{item.title}</h3><p>{item.detail}</p></div><div><button onClick={() => openRevision(item)}>Open board →</button><button onClick={() => completeRevision(item.id)}>I recalled it ✓</button></div></article>) : <div className="revision-empty"><span>♞</span><strong>{revisionItems.length ? 'Nothing urgent. Let the ideas breathe.' : 'Your recall queue is empty.'}</strong><p>{revisionItems.length ? `Next return: ${revisionTiming(upcomingRevisions[0])}.` : 'Save an opening or keep a lab reflection; First Rank will bring it back at the right time.'}</p></div>}</div></section>
     <section className="home-command"><div><p className="eyebrow">YOUR BOARDWORK</p><h2>One board.<br /><em>One useful job.</em></h2></div><div className="home-routes"><button onClick={() => navigate('openings')}><span>01 · REPERTOIRE</span><strong>Openings</strong><p>{savedOpenings.length ? `${savedOpenings.length} systems saved · continue your line` : 'Choose a system and learn the plan behind it'}</p><i>Go to openings →</i></button><button onClick={() => navigate('practice')}><span>02 · TRAINING</span><strong>Practice</strong><p>Daily tactics, middlegame plans, and endgame technique.</p><i>Start a drill →</i></button><button onClick={() => navigate('review')}><span>03 · FEEDBACK</span><strong>Review</strong><p>{focusItems.length ? `${focusItems.length} focus item${focusItems.length === 1 ? '' : 's'} waiting` : 'Turn your recent game into a concrete training focus'}</p><i>Review a game →</i></button><button onClick={() => navigate('learn')}><span>04 · PROGRAM</span><strong>Learn</strong><p>{journalTotal ? `${journalTotal} minutes logged this week` : `Start with 15 minutes of ${leastTrained.label.toLowerCase()}`}</p><i>See the plan →</i></button></div></section>
     <section data-workspace="openings" className="repertoire-rail" id="repertoire-rail" aria-label="Opening selector"><div className="rail-intro"><div><p className="eyebrow">START HERE · {openings.length} LINES READY</p><strong>Choose your next<br />battlefield.</strong></div><div className="rail-filters"><button className={railFilter === 'All' ? 'active' : ''} onClick={() => setRailFilter('All')}>All systems</button><button className={railFilter === 'WHITE REPERTOIRE' ? 'active' : ''} onClick={() => setRailFilter('WHITE REPERTOIRE')}>As White</button><button className={railFilter === 'BLACK REPERTOIRE' ? 'active' : ''} onClick={() => setRailFilter('BLACK REPERTOIRE')}>As Black</button></div></div><div className="opening-strip">{railOpenings.map((item, index) => <button key={item.id} onClick={() => selectOpening(item.id)} className={item.id === openingId ? 'active' : ''}><span>{String(index + 1).padStart(2, '0')} · {item.eco}</span><b>{item.name}</b><small>{item.category} · {item.tempo}</small><i>{item.id === openingId ? 'In study ↓' : 'Study this →'}</i></button>)}</div></section>
     <section className="opening-pulse"><div><p className="eyebrow">LIVE OPENING PULSE</p><h2>What does the<br /><em>database answer?</em></h2></div><div className="pulse-grid">{openingPulse.status === 'ready' ? pulseMoves.map((row) => <article key={row.id}><span>{row.label}</span><strong>{row.san}</strong><small>{row.name} · {row.move?.winrate ? `${Number(row.move.winrate).toFixed(1)}% White score` : 'live line'}</small></article>) : <p>{openingPulse.status === 'loading' ? 'Reading public opening replies…' : 'Live opening pulse is temporarily unavailable.'}</p>}</div><p className="pulse-source">Public source: <a href="https://www.chessdb.cn/" target="_blank" rel="noreferrer">ChessDB ↗</a> · Replies are a database signal, not a command.</p></section>
