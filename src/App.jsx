@@ -100,6 +100,12 @@ function App() {
   const [orientation, setOrientation] = useState('w')
   const [activeLab, setActiveLab] = useState('middle')
   const [intelligence, setIntelligence] = useState({ status: 'loading', moves: [] })
+  const [puzzle, setPuzzle] = useState({ status: 'loading' })
+  const [puzzleFen, setPuzzleFen] = useState(null)
+  const [puzzleSide, setPuzzleSide] = useState(null)
+  const [puzzleStep, setPuzzleStep] = useState(0)
+  const [puzzleSelected, setPuzzleSelected] = useState(null)
+  const [puzzleFeedback, setPuzzleFeedback] = useState('Load the position and find the forcing move.')
   const [completedTracks, setCompletedTracks] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('atlas-tracks') || '[]')
@@ -116,6 +122,7 @@ function App() {
   const currentFen = game.fen()
   const lab = gameLabs.find((item) => item.id === activeLab)
   const labGame = useMemo(() => new Chess(lab.fen), [lab])
+  const puzzleGame = useMemo(() => puzzleFen ? new Chess(puzzleFen) : null, [puzzleFen])
   const explorerMoves = useMemo(() => intelligence.moves.slice(0, 5).map((move) => {
     const test = new Chess(currentFen)
     try { return { ...move, san: test.move({ from: move.move.slice(0, 2), to: move.move.slice(2, 4), promotion: move.move[4] })?.san } } catch { return { ...move, san: move.move } }
@@ -161,6 +168,20 @@ function App() {
       .catch((error) => { if (error.name !== 'AbortError') setIntelligence({ status: 'error', moves: [] }) })
     return () => controller.abort()
   }, [currentFen])
+  useEffect(() => {
+    const controller = new AbortController()
+    fetch('/api/daily-puzzle', { signal: controller.signal })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Puzzle unavailable')))
+      .then((data) => {
+        const position = new Chess(data.puzzle.fen)
+        setPuzzle({ status: 'ready', ...data })
+        setPuzzleFen(data.puzzle.fen)
+        setPuzzleSide(position.turn())
+        setPuzzleFeedback(`${position.turn() === 'w' ? 'White' : 'Black'} to move. Find the forcing continuation.`)
+      })
+      .catch((error) => { if (error.name !== 'AbortError') setPuzzle({ status: 'error' }) })
+    return () => controller.abort()
+  }, [])
   function handleSquare(square) {
     if (mode !== 'drill') return
     if (!selected) { if (game.get(square)?.color === game.turn()) setSelected(square); return }
@@ -173,9 +194,37 @@ function App() {
     setSelected(null)
   }
   function startDrill() { setPly(0); setSelected(null); setMode('drill'); setFeedback(`Your mission: play ${opening.moves[0]}.`); }
+  function resetPuzzle() {
+    if (!puzzle.puzzle) return
+    const position = new Chess(puzzle.puzzle.fen)
+    setPuzzleFen(puzzle.puzzle.fen)
+    setPuzzleSide(position.turn())
+    setPuzzleStep(0)
+    setPuzzleSelected(null)
+    setPuzzleFeedback(`${position.turn() === 'w' ? 'White' : 'Black'} to move. Find the forcing continuation.`)
+  }
+  function handlePuzzleSquare(square) {
+    if (!puzzleGame || puzzle.status !== 'ready' || puzzleStep >= puzzle.puzzle.solution.length) return
+    if (!puzzleSelected) { if (puzzleGame.get(square)?.color === puzzleSide) setPuzzleSelected(square); return }
+    const move = `${puzzleSelected}${square}`
+    const expected = puzzle.puzzle.solution[puzzleStep]
+    if (move !== expected) { setPuzzleSelected(null); setPuzzleFeedback('Not this one. Scan checks, captures, then threats.'); return }
+    const test = new Chess(puzzleFen)
+    test.move({ from: move.slice(0, 2), to: move.slice(2, 4), promotion: move[4] })
+    let nextStep = puzzleStep + 1
+    while (nextStep < puzzle.puzzle.solution.length && test.turn() !== puzzleSide) {
+      const reply = puzzle.puzzle.solution[nextStep]
+      test.move({ from: reply.slice(0, 2), to: reply.slice(2, 4), promotion: reply[4] })
+      nextStep += 1
+    }
+    setPuzzleFen(test.fen())
+    setPuzzleStep(nextStep)
+    setPuzzleSelected(null)
+    setPuzzleFeedback(nextStep >= puzzle.puzzle.solution.length ? 'Solved. You found the whole forcing sequence.' : 'Correct. The defender replies—keep calculating.')
+  }
 
   return <main className={`app ${theme === 'dark' ? 'dark' : ''}`}>
-    <nav><a className="brand" href="#top"><span>♞</span> opening<span>atlas</span></a><div className="nav-links"><a href="#library">Library</a><a href="#study">Study</a><a href="#game-lab">Game lab</a><a href="#field-notes">Field notes</a><button className="theme-toggle" onClick={toggleTheme} aria-label="Toggle color theme">{theme === 'light' ? '◐ Dark' : '◑ Light'}</button><button className="streak">⚡ 7 day streak</button></div></nav>
+    <nav><a className="brand" href="#top"><span>♞</span> opening<span>atlas</span></a><div className="nav-links"><a href="#library">Library</a><a href="#study">Study</a><a href="#puzzle-zone">Puzzles</a><a href="#game-lab">Game lab</a><a href="#field-notes">Field notes</a><button className="theme-toggle" onClick={toggleTheme} aria-label="Toggle color theme">{theme === 'light' ? '◐ Dark' : '◑ Light'}</button><button className="streak">⚡ 7 day streak</button></div></nav>
     <section className="hero" id="top"><div><p className="eyebrow">THE FIRST 12 MOVES, REIMAGINED</p><h1>Learn the <em>why</em><br />behind your moves.</h1><p className="hero-copy">A living opening repertoire for people who want to understand the position—not memorize an endless tree.</p><a className="hero-cta" href="#study">Enter the study hall <span>↓</span></a></div><div className="hero-note"><p>Today’s rule</p><strong>“Every opening move should buy you a plan.”</strong><div><span>01 / 04</span><span>WHITE TO MOVE</span></div></div></section>
     <section className="opening-strip" aria-label="Opening selector">{openings.slice(0, 4).map((item, index) => <button key={item.id} onClick={() => selectOpening(item.id)} className={item.id === openingId ? 'active' : ''}><span>0{index + 1}</span><b>{item.name}</b><small>{item.eco} · {item.tempo}</small></button>)}</section>
     <section className="study" id="study"><div className="study-intro"><div><p className="eyebrow">LESSON 01 / OPENING ATLAS</p><h2>Build the position.<br /><em>Understand the plan.</em></h2></div><div className="lesson-status"><span>YOUR PROGRESS</span><strong>{Math.round((ply / opening.moves.length) * 100)}%</strong><small>{mode === 'drill' ? 'Drill active' : 'Line exploration'}</small></div></div><aside className="repertoire"><p className="eyebrow">REPERTOIRE / {opening.tag}</p><h2>{opening.name}</h2><p>{opening.promise}</p><div className="line"><span>MAIN LINE</span>{opening.moves.map((move, i) => <button key={`${move}-${i}`} onClick={() => { setPly(i + 1); setMode('study') }} className={i === ply - 1 ? 'current' : ''}>{i % 2 === 0 ? `${Math.floor(i / 2) + 1}.` : ''} {move}</button>)}</div><button className="drill-button" onClick={startDrill}>Start move drill <span>→</span></button></aside>
@@ -183,6 +232,7 @@ function App() {
       <aside className="coach"><div><div className="coach-mark">♜</div><p className="eyebrow">POSITION COACH</p></div><div><h3>{nextMove ? `The next idea: ${nextMove}` : 'Main line complete'}</h3><p>{nextMove ? `${game.turn() === 'w' ? 'White' : 'Black'} to move. Find the move that carries the opening’s central idea forward.` : 'You have reached the first reference position. Now choose your plan.'}</p></div><div className="coach-actions"><div className="score"><span>DRILL SCORE</span><strong>{String(score).padStart(2, '0')}</strong></div><button onClick={startDrill}>Reset drill</button></div></aside></section>
     <section className="notes" id="field-notes"><div className="notes-title"><p className="eyebrow">FIELD NOTES</p><h2>The ideas that survive<br />when the book ends.</h2></div><article><span>01</span><h3>Plan of attack</h3><ul>{opening.plans.map((plan) => <li key={plan}>{plan}</li>)}</ul></article><article><span>02</span><h3>Common mistake</h3><p>{opening.trap}</p></article><article><span>03</span><h3>How to defend it</h3><p>{opening.defense}</p></article></section>
     <section className="intelligence" aria-label="Live opening intelligence"><div className="intel-heading"><div><p className="eyebrow">LIVE POSITION DESK</p><h2>What the database<br /><em>likes from here.</em></h2></div><p>Current-position move quality, queried from ChessDB’s public analysis database. Use it as a second opinion—not a substitute for understanding the plan.</p></div><div className="intel-body"><div className="intel-status"><span className={`status-dot ${intelligence.status}`}></span><span>{intelligence.status === 'loading' ? 'Reading the position…' : intelligence.status === 'ready' ? `Live at move ${Math.ceil(ply / 2)}` : 'Connection paused'}</span><small>Source: <a href="https://www.chessdb.cn/" target="_blank" rel="noreferrer">ChessDB ↗</a></small></div><div className="intel-moves">{intelligence.status === 'ready' && explorerMoves.length ? explorerMoves.map((move) => <div className="intel-move" key={move.move}><strong>{move.san}</strong><span className="move-bar"><i style={{ width: `${Math.min(100, Math.max(8, Number(move.winrate) || 0))}%` }}></i></span><b>{move.winrate ? `${Number(move.winrate).toFixed(1)}%` : '—'}</b><small>{move.note || 'book'}</small></div>) : <p className="intel-empty">{intelligence.status === 'loading' ? 'Finding the strongest continuations…' : 'No live data for this exact position yet. Explore another point in the line.'}</p>}</div></div></section>
+    <section className="puzzle-zone" id="puzzle-zone"><div className="puzzle-heading"><div><p className="eyebrow">LIVE FROM LICHESS</p><h2>Daily tactical<br /><em>pulse.</em></h2></div><div className="puzzle-meta">{puzzle.status === 'ready' ? <><span>{puzzle.puzzle.rating} RATING</span><span>{puzzle.puzzle.plays.toLocaleString()} SOLVES</span></> : <span>LOADING PUZZLE</span>}</div></div><div className="puzzle-workspace"><div className="puzzle-board">{puzzleGame ? <Board game={puzzleGame} orientation={puzzleSide || 'w'} selected={puzzleSelected} onSquare={handlePuzzleSquare} /> : <div className="puzzle-loading">Finding today’s position…</div>}<p className="puzzle-feedback">{puzzleFeedback}</p></div><div className="puzzle-brief"><p className="eyebrow">CALCULATE, DON’T GUESS</p><h3>{puzzleStep >= (puzzle.puzzle?.solution.length || Infinity) ? 'Line complete.' : 'Your move.'}</h3><p>Start by asking what is forcing. The best tactical decisions are usually checks, captures, or threats.</p>{puzzle.status === 'ready' && <div className="puzzle-tags">{puzzle.puzzle.themes.slice(0, 4).map((theme) => <span key={theme}>{theme.replace(/([A-Z])/g, ' $1')}</span>)}</div>}<button onClick={resetPuzzle}>Reset position <span>↺</span></button><a href="https://lichess.org/training" target="_blank" rel="noreferrer">More Lichess puzzles ↗</a></div></div></section>
     <section className="library" id="library"><div className="library-heading"><div><p className="eyebrow">THE REPERTOIRE ROOM</p><h2>{openings.length} foundational<br /><em>opening systems.</em></h2></div><p>Choose a family, find your line, and take it straight to the board. This is a practical first library—not an intimidating encyclopedia.</p></div><div className="library-controls"><div className="filters">{categories.map((category) => <button key={category} className={filter === category ? 'chosen' : ''} onClick={() => setFilter(category)}>{category}</button>)}</div><label className="search"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find an opening" aria-label="Find an opening" /></label></div><div className="opening-library">{visibleOpenings.map((item) => <button className={`library-opening ${item.id === openingId ? 'selected-opening' : ''}`} onClick={() => selectOpening(item.id)} key={item.id}><span>{item.eco}</span><b>{item.name}</b><small>{item.category} · {item.tempo}</small><i>Study line →</i></button>)}{!visibleOpenings.length && <p className="empty">No opening found. Try another name or family.</p>}</div></section>
     <section className="game-lab" id="game-lab"><div className="lab-heading"><div><p className="eyebrow">YOUR COMPLETE GAME, ONE LAYER AT A TIME</p><h2>The opening is the invitation.<br /><em>The rest is the game.</em></h2></div><p>Opening Atlas now carries you beyond the first moves: train the decisions that convert a familiar position into points.</p></div><div className="lab-tabs">{gameLabs.map((item) => <button onClick={() => setActiveLab(item.id)} className={activeLab === item.id ? 'active' : ''} key={item.id}>{item.label}<strong>{item.title}</strong></button>)}</div><div className="lab-workspace"><div className="lab-board"><p className="eyebrow">{lab.eyebrow}</p><Board game={labGame} orientation="w" onSquare={() => {}} /><p>{lab.mission}</p></div><div className="lab-brief"><p className="eyebrow">THINK BEFORE YOU MOVE</p><h3>{lab.title}</h3><p>{lab.prompt}</p><ol>{lab.focus.map((item) => <li key={item}>{item}</li>)}</ol><button onClick={() => document.querySelector('#study')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>Return to opening study <span>↑</span></button></div></div></section>
     <section className="curriculum" id="curriculum"><div className="curriculum-top"><div><p className="eyebrow">THE PATH TO STRONG CHESS</p><h2>Train what actually<br /><em>makes you dangerous.</em></h2></div><div className="completion"><span>TRACKS COMPLETE</span><strong>{completedTracks.length}<i>/</i>{curriculum.length}</strong><p>Build a balanced game. Mark a track when you’ve trained it this week.</p></div></div><div className="curriculum-grid">{curriculum.map((track) => <article key={track.id} className={completedTracks.includes(track.id) ? 'done' : ''}><div><span>{track.number}</span><small>{track.level}</small></div><h3>{track.title}</h3><p>{track.detail}</p><ul>{track.tasks.map((task) => <li key={task}>{task}</li>)}</ul><button onClick={() => toggleTrack(track.id)} aria-pressed={completedTracks.includes(track.id)}>{completedTracks.includes(track.id) ? 'Completed this week ✓' : 'Mark as trained'}</button></article>)}</div></section>
