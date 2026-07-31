@@ -17,6 +17,8 @@ export default async function handler(req, res) {
       title: data.title || null,
       perfs,
       count: data.count || {},
+      createdAt: data.createdAt || null,
+      playTime: data.playTime || {},
       online: Boolean(data.online),
       seenAt: data.seenAt || null,
     })
