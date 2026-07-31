@@ -182,6 +182,8 @@ function Board({ game, orientation = 'w', onSquare, selected, lastMove }) {
 
 function App() {
   const [page, setPage] = useState(pageFromLocation)
+  const [commandOpen, setCommandOpen] = useState(false)
+  const [commandQuery, setCommandQuery] = useState('')
   const [openingId, setOpeningId] = useState('sicilian')
   const [ply, setPly] = useState(8)
   const [mode, setMode] = useState('study')
@@ -399,10 +401,26 @@ function App() {
     ]
   }, [dueRevisions, openMistakes, leastTrained, savedOpenings])
   const completedSessionCount = dailySession.filter((item) => sessionChecks.includes(item.id)).length
+  const commandItems = useMemo(() => {
+    const destinations = [
+      { id: 'home', label: 'Home', detail: 'Your boardwork dashboard', run: () => navigate('home') },
+      { id: 'openings', label: 'Openings', detail: 'Repertoire, lines, plans, and defence', run: () => navigate('openings') },
+      { id: 'practice', label: 'Practice', detail: 'Tactics, middlegames, structures, and endgames', run: () => navigate('practice') },
+      { id: 'analysis', label: 'Analysis desk', detail: 'Test a FEN, candidate move, or tablebase position', run: () => navigate('analysis') },
+      { id: 'review', label: 'Game review', detail: 'Paste a PGN and turn a game into practice', run: () => navigate('review') },
+      { id: 'scout', label: 'Scout', detail: 'Read a public Lichess profile', run: () => navigate('scout') },
+      { id: 'learn', label: 'Learn', detail: 'Daily session, coordinate gym, and studies', run: () => navigate('learn') },
+    ]
+    const openingShortcuts = openings.map((item) => ({ id: `opening-${item.id}`, label: item.name, detail: `${item.eco} · ${item.tag.toLowerCase()}`, run: () => selectOpening(item.id) }))
+    const needle = commandQuery.trim().toLowerCase()
+    return [...destinations, ...openingShortcuts].filter((item) => !needle || `${item.label} ${item.detail}`.toLowerCase().includes(needle)).slice(0, 9)
+  }, [commandQuery])
   function navigate(nextPage, target) {
     const pathname = nextPage === 'home' ? '/' : `/${nextPage}`
     if (window.location.pathname !== pathname) window.history.pushState({}, '', pathname)
     setPage(nextPage)
+    setCommandOpen(false)
+    setCommandQuery('')
     requestAnimationFrame(() => {
       if (target) document.querySelector(`#${target}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       else window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -513,6 +531,12 @@ function App() {
   const flipBoard = useCallback(() => { setOrientation((side) => side === 'w' ? 'b' : 'w') }, [])
   useEffect(() => {
     function handleKeyboard(event) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setCommandOpen((open) => !open)
+        return
+      }
+      if (event.key === 'Escape' && commandOpen) { setCommandOpen(false); setCommandQuery(''); return }
       const tag = event.target.tagName
       if (event.metaKey || event.ctrlKey || event.altKey || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || event.target.isContentEditable) return
       const key = event.key.toLowerCase()
@@ -527,7 +551,7 @@ function App() {
     }
     window.addEventListener('keydown', handleKeyboard)
     return () => window.removeEventListener('keydown', handleKeyboard)
-  }, [opening.moves.length, previousMove, nextLineMove, flipBoard])
+  }, [opening.moves.length, previousMove, nextLineMove, flipBoard, commandOpen])
   useEffect(() => {
     const syncPage = () => setPage(pageFromLocation())
     window.addEventListener('popstate', syncPage)
@@ -798,7 +822,8 @@ function App() {
   }
 
   return <main className={`app workspace-${page} ${theme === 'dark' ? 'dark' : ''}`}>
-    <nav className="workspace-nav"><button className="brand" onClick={() => navigate('home')}><span>♞</span> first<span>rank</span></button><div className="nav-links">{[['home', 'Home'], ['openings', 'Openings'], ['practice', 'Practice'], ['analysis', 'Analysis'], ['review', 'Review'], ['scout', 'Scout'], ['learn', 'Learn']].map(([id, label]) => <button className={page === id ? 'active' : ''} onClick={() => navigate(id)} key={id}>{label}</button>)}</div><div className="nav-utility"><button className="theme-toggle" onClick={toggleTheme} aria-label="Toggle color theme">{theme === 'light' ? '◐ Dark' : '◑ Light'}</button><button className="streak" onClick={() => navigate('learn', 'daily-session')}>⚡ Today {completedSessionCount}/{dailySession.length}</button></div></nav>
+    <nav className="workspace-nav"><button className="brand" onClick={() => navigate('home')}><span>♞</span> first<span>rank</span></button><div className="nav-links">{[['home', 'Home'], ['openings', 'Openings'], ['practice', 'Practice'], ['analysis', 'Analysis'], ['review', 'Review'], ['scout', 'Scout'], ['learn', 'Learn']].map(([id, label]) => <button className={page === id ? 'active' : ''} onClick={() => navigate(id)} key={id}>{label}</button>)}</div><div className="nav-utility"><button className="jump-button" onClick={() => setCommandOpen(true)} aria-haspopup="dialog">Jump <kbd>⌘K</kbd></button><button className="theme-toggle" onClick={toggleTheme} aria-label="Toggle color theme">{theme === 'light' ? '◐ Dark' : '◑ Light'}</button><button className="streak" onClick={() => navigate('learn', 'daily-session')}>⚡ Today {completedSessionCount}/{dailySession.length}</button></div></nav>
+    {commandOpen && <div className="command-layer" role="presentation" onMouseDown={() => { setCommandOpen(false); setCommandQuery('') }}><section className="command-palette" role="dialog" aria-modal="true" aria-label="Jump anywhere" onMouseDown={(event) => event.stopPropagation()}><div className="command-input"><span>⌕</span><input autoFocus value={commandQuery} onChange={(event) => setCommandQuery(event.target.value)} placeholder="Go to a workspace or opening…" aria-label="Search workspaces and openings" /><kbd>ESC</kbd></div><p>WORKSPACES &amp; OPENINGS</p><div className="command-results">{commandItems.length ? commandItems.map((item) => <button key={item.id} onClick={item.run}><strong>{item.label}</strong><small>{item.detail}</small><i>↗</i></button>) : <div className="command-empty">No workspace or opening matches that.</div>}</div></section></div>}
     <aside className="quick-rail" aria-label="Workspace navigation"><span>FIRST RANK</span>{[['home', 'Home', '01'], ['openings', 'Openings', '02'], ['practice', 'Practice', '03'], ['analysis', 'Analysis', '04'], ['review', 'Review', '05'], ['scout', 'Scout', '06'], ['learn', 'Learn', '07']].map(([id, label, number]) => <button className={page === id ? 'active' : ''} onClick={() => navigate(id)} key={id}><b>{number}</b><i>{label}</i></button>)}</aside>
     <section className="position-launcher"><div><p className="eyebrow">UNIVERSAL POSITION DESK</p><h2>Bring any board<br /><em>into focus.</em></h2><p>Use a FEN from a game, course, or book. First Rank routes it through the same live database, cloud engine, and exact tablebase tools as every lesson.</p></div><form onSubmit={submitFen}><label htmlFor="fen-draft">FEN / FORSYTH–EDWARDS NOTATION</label><textarea id="fen-draft" value={fenDraft} onChange={(event) => setFenDraft(event.target.value)} placeholder="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" /><div className="preset-row"><button type="button" onClick={() => openAnalysisPosition('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 'Initial position')}>Opening preset</button><button type="button" onClick={() => openAnalysisPosition(gameLabs[0].fen, 'Middlegame preset')}>Middlegame preset</button><button type="button" onClick={() => openAnalysisPosition(gameLabs[1].fen, 'Endgame preset')}>Endgame preset</button></div><button className="open-position" type="submit">Open live position <span>→</span></button><p className="fen-feedback">{fenFeedback}</p></form></section>
     <section data-workspace="home" className="hero" id="top"><div><p className="eyebrow">THE CHESS LEARNING WORKSPACE</p><h1>Learn the <em>why</em><br />behind your moves.</h1><p className="hero-copy">A focused place to build an opening repertoire, practice plans, review games, and develop endgame technique.</p><button className="hero-cta" onClick={() => navigate('openings')}>Open your repertoire <span>→</span></button></div><div className="hero-note"><p>Today’s rule</p><strong>“Every opening move should buy you a plan.”</strong><div><span>FIRST RANK</span><span>WORKSPACE</span></div></div></section>
