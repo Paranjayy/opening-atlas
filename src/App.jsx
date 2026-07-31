@@ -131,11 +131,15 @@ function Board({ game, orientation = 'w', onSquare, selected, lastMove }) {
     const fileOrder = orientation === 'w' ? files : [...files].reverse()
     return rankOrder.flatMap((rank) => fileOrder.map((file) => `${file}${rank}`))
   }, [orientation])
+  const legalTargets = useMemo(() => {
+    if (!selected) return new Set()
+    try { return new Set(game.moves({ square: selected, verbose: true }).map((move) => move.to)) } catch { return new Set() }
+  }, [game, selected])
   return <div className="board-shell"><div className="board" role="grid" aria-label="Chessboard">
     {squares.map((square, index) => {
       const piece = game.get(square)
       const isLast = lastMove?.includes(square)
-      return <button key={square} className={`square ${(Math.floor(index / 8) + index) % 2 ? 'dark' : 'light'} ${selected === square ? 'selected' : ''} ${isLast ? 'last' : ''}`} onClick={() => onSquare(square)} aria-label={square}>
+      return <button key={square} className={`square ${(Math.floor(index / 8) + index) % 2 ? 'dark' : 'light'} ${selected === square ? 'selected' : ''} ${legalTargets.has(square) ? 'legal' : ''} ${isLast ? 'last' : ''}`} onClick={() => onSquare(square)} aria-label={`${square}${legalTargets.has(square) ? ', legal destination' : ''}`}>
         {index % 8 === 0 && <span className="rank-label">{square[1]}</span>}
         {index >= 56 && <span className="file-label">{square[0]}</span>}
         {piece && <img draggable="false" src={pieceSrc(piece)} alt={`${piece.color === 'w' ? 'White' : 'Black'} ${pieceName[piece.type]}`} />}
