@@ -88,6 +88,19 @@ const tacticPatterns = [
   { id: 'sacrifice', title: 'Sacrifice', level: 'Calculation', cue: 'Material is given up for forcing moves, activity, or a concrete payoff.', check: 'Calculate checks, captures, and threats to a stable finish—not merely to the first flashy move.' },
 ]
 
+const journalAreas = [
+  { id: 'opening', label: 'Openings', cue: 'Line recall + plan' },
+  { id: 'tactics', label: 'Tactics', cue: 'Calculate forcing moves' },
+  { id: 'middle', label: 'Middlegame', cue: 'Structure + plan' },
+  { id: 'end', label: 'Endgames', cue: 'Technique + conversion' },
+]
+const weekStamp = () => {
+  const date = new Date()
+  const monday = new Date(date)
+  monday.setDate(date.getDate() - ((date.getDay() + 6) % 7))
+  return monday.toISOString().slice(0, 10)
+}
+
 function Board({ game, orientation = 'w', onSquare, selected, lastMove }) {
   const squares = useMemo(() => {
     const rankOrder = orientation === 'w' ? [8, 7, 6, 5, 4, 3, 2, 1] : [1, 2, 3, 4, 5, 6, 7, 8]
@@ -141,6 +154,12 @@ function App() {
   const [savedOpenings, setSavedOpenings] = useState(() => {
     try { const saved = JSON.parse(localStorage.getItem('atlas-repertoire') || '[]'); return Array.isArray(saved) ? saved : [] } catch { return [] }
   })
+  const [journal, setJournal] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('atlas-journal') || '{}')
+      return saved.week === weekStamp() && saved.minutes ? saved : { week: weekStamp(), minutes: {} }
+    } catch { return { week: weekStamp(), minutes: {} } }
+  })
   const [pgnInput, setPgnInput] = useState('')
   const [review, setReview] = useState(null)
   const [reviewPly, setReviewPly] = useState(0)
@@ -188,6 +207,8 @@ function App() {
   const categories = ['All', ...new Set(openings.map((item) => item.category))]
   const visibleOpenings = openings.filter((item) => (filter === 'All' || item.category === filter) && item.name.toLowerCase().includes(query.toLowerCase()))
   const repertoireQueue = useMemo(() => savedOpenings.map((id) => openings.find((item) => item.id === id)).filter(Boolean).slice(0, 4), [savedOpenings])
+  const journalTotal = Object.values(journal.minutes).reduce((total, minutes) => total + minutes, 0)
+  const leastTrained = journalAreas.reduce((least, area) => (journal.minutes[area.id] || 0) < (journal.minutes[least.id] || 0) ? area : least, journalAreas[0])
   function selectOpening(id) { setOpeningId(id); setPly(0); setMode('study'); setSelected(null); setFeedback('New line loaded. Walk through the opening or start a drill.'); document.querySelector('#study')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
   function toggleTheme() { const next = theme === 'light' ? 'dark' : 'light'; setTheme(next); localStorage.setItem('atlas-theme', next) }
   function toggleTrack(id) {
@@ -334,6 +355,15 @@ function App() {
       return next
     })
   }
+  function logPractice(id) {
+    setJournal((current) => {
+      const clean = current.week === weekStamp() ? current : { week: weekStamp(), minutes: {} }
+      const next = { ...clean, minutes: { ...clean.minutes, [id]: (clean.minutes[id] || 0) + 15 } }
+      localStorage.setItem('atlas-journal', JSON.stringify(next))
+      return next
+    })
+  }
+  function resetJournal() { const next = { week: weekStamp(), minutes: {} }; localStorage.setItem('atlas-journal', JSON.stringify(next)); setJournal(next) }
   function handleLabSquare(square) {
     if (labSolved) return
     if (!labSelected) { if (labGame.get(square)?.color === labGame.turn()) setLabSelected(square); return }
@@ -362,6 +392,7 @@ function App() {
     <section className="game-lab" id="game-lab"><div className="lab-heading"><div><p className="eyebrow">YOUR COMPLETE GAME, ONE LAYER AT A TIME</p><h2>The opening is the invitation.<br /><em>The rest is the game.</em></h2></div><p>Opening Atlas now carries you beyond the first moves: train the decisions that convert a familiar position into points.</p></div><div className="lab-tabs">{gameLabs.map((item) => <button onClick={() => setActiveLab(item.id)} className={activeLab === item.id ? 'active' : ''} key={item.id}>{item.label}<strong>{item.title}</strong></button>)}</div><div className="lab-workspace"><div className="lab-board"><p className="eyebrow">{lab.eyebrow} · {labSolved ? 'IDEA FOUND' : 'MOVE TO PROVE IT'}</p><Board game={labGame} orientation="w" selected={labSelected} lastMove={labLastMove} onSquare={handleLabSquare} /><p>{lab.mission}</p></div><div className="lab-brief"><p className="eyebrow">THINK BEFORE YOU MOVE</p><h3>{lab.title}</h3><p>{lab.prompt}</p><ol>{lab.focus.map((item) => <li key={item}>{item}</li>)}</ol><div className={`lab-feedback ${labSolved ? 'solved' : ''}`}>{labFeedback}</div><button onClick={() => { setLabFen(lab.fen); setLabSelected(null); setLabSolved(false); setLabLastMove(null); setLabFeedback('Choose a piece, then make the move that proves the idea.') }}>Reset this position <span>↺</span></button></div></div></section>
     <section className="game-review" id="game-review"><div className="review-heading"><div><p className="eyebrow">BRING YOUR OWN GAME</p><h2>Turn a loss into<br /><em>a training plan.</em></h2></div><p>Paste any standard PGN. Atlas reads it locally in your browser and lets you step through the decisive moments—nothing is uploaded.</p></div><div className="review-workspace"><div className="review-input"><label htmlFor="pgn">PGN / MOVETEXT</label><textarea id="pgn" value={pgnInput} onChange={(event) => setPgnInput(event.target.value)} placeholder={'1. e4 e5 2. Nf3 Nc6 3. Bb5 a6\n\nOr paste a complete PGN export…'} /><button onClick={reviewPgn}>Read my game <span>→</span></button><p>{reviewFeedback}</p></div><div className="review-result">{reviewGame ? <><div className="review-meta"><span>{review.headers.White} vs {review.headers.Black}</span><b>{review.headers.Result}</b></div><div className="review-controls"><button onClick={() => setReviewPly(0)} disabled={!reviewPly}>↞</button><button onClick={() => setReviewPly((current) => Math.max(0, current - 1))} disabled={!reviewPly}>←</button><span>{reviewPly} / {review.moves.length} · {reviewPly ? `${Math.ceil(reviewPly / 2)}${reviewPly % 2 ? '.' : '…'}` : 'Start'}</span><button onClick={() => setReviewPly((current) => Math.min(review.moves.length, current + 1))} disabled={reviewPly === review.moves.length}>→</button><button onClick={() => setReviewPly(review.moves.length)} disabled={reviewPly === review.moves.length}>↠</button></div><Board game={reviewGame} orientation="w" onSquare={() => {}} /><div className="review-coach"><p className="eyebrow">{reviewMove ? `MOVE ${reviewPly} · ${reviewMove.san}` : 'POSITION COACH'}</p><strong>{reviewMoment}</strong></div><p><strong>{review.moves.length} plies read.</strong> Use the arrows to find a pawn move, capture, or king-safety commitment worth analysing.</p></> : <div className="review-placeholder"><span>♞</span><strong>Your game will land here.</strong><p>Then step through the decision points before comparing a position with the engine and database above.</p></div>}</div></div></section>
     <section className="player-desk" id="player-desk"><div className="player-heading"><div><p className="eyebrow">LIVE PLAYER INTEL</p><h2>Know the games<br /><em>you actually play.</em></h2></div><p>Look up any public Lichess account. Ratings and game totals are live from Lichess, so your training plan starts with the formats you really use.</p></div><div className="player-workspace"><form className="player-form" onSubmit={loadProfile}><label htmlFor="profile-name">PUBLIC LICHESS HANDLE</label><div><input id="profile-name" value={profileName} onChange={(event) => setProfileName(event.target.value)} placeholder="e.g. DrNykterstein" /><button type="submit">Look up ↗</button></div><p>No sign-in. Public profile data only. <a href="https://lichess.org" target="_blank" rel="noreferrer">Lichess ↗</a></p></form><div className="player-result">{profile.status === 'ready' ? <><div className="profile-title"><span>{profile.title || 'PLAYER'}</span><h3>{profile.username}</h3><a href={`https://lichess.org/@/${profile.username}`} target="_blank" rel="noreferrer">Open profile ↗</a></div><div className="perf-grid">{Object.entries(profile.perfs).map(([key, perf]) => <div key={key}><span>{key}</span><strong>{perf.rating}</strong><small>{perf.games || 0} games · {perf.prog > 0 ? '+' : ''}{perf.prog || 0}</small></div>)}</div><div className="profile-foot"><span>{(profile.count.all || 0).toLocaleString()} total games</span><span>{profile.count.all ? `${Math.round(((profile.count.win || 0) / profile.count.all) * 100)}% wins` : 'New profile'}</span><span>{profile.online ? 'Online now' : 'Offline'}</span></div></> : <div className="player-empty"><span>{profile.status === 'loading' ? '↻' : '♞'}</span><strong>{profile.status === 'loading' ? 'Reading the scorecard…' : profile.status === 'error' ? profile.error : 'A player’s live scorecard will appear here.'}</strong><p>Compare formats, then train the weakness—not merely the rating you like most.</p></div>}</div></div></section>
+    <section className="training-journal"><div className="journal-heading"><div><p className="eyebrow">THIS WEEK’S BOARDWORK</p><h2>Balance beats<br /><em>bingeing.</em></h2></div><div><strong>{journalTotal}</strong><span>minutes logged</span><p>Next up: <b>{leastTrained.label}</b> — {leastTrained.cue.toLowerCase()}.</p></div></div><div className="journal-grid">{journalAreas.map((area) => <article key={area.id}><div><span>{area.label}</span><b>{journal.minutes[area.id] || 0}<i>m</i></b></div><p>{area.cue}</p><div className="journal-track"><i style={{ width: `${Math.min(100, ((journal.minutes[area.id] || 0) / 45) * 100)}%` }}></i></div><button onClick={() => logPractice(area.id)}>Log 15 minutes +</button></article>)}</div><button className="journal-reset" onClick={resetJournal}>Reset this week</button></section>
     <section className="curriculum" id="curriculum"><div className="curriculum-top"><div><p className="eyebrow">THE PATH TO STRONG CHESS</p><h2>Train what actually<br /><em>makes you dangerous.</em></h2></div><div className="completion"><span>TRACKS COMPLETE</span><strong>{completedTracks.length}<i>/</i>{curriculum.length}</strong><p>Build a balanced game. Mark a track when you’ve trained it this week.</p></div></div><div className="curriculum-grid">{curriculum.map((track) => <article key={track.id} className={completedTracks.includes(track.id) ? 'done' : ''}><div><span>{track.number}</span><small>{track.level}</small></div><h3>{track.title}</h3><p>{track.detail}</p><ul>{track.tasks.map((task) => <li key={task}>{task}</li>)}</ul><button onClick={() => toggleTrack(track.id)} aria-pressed={completedTracks.includes(track.id)}>{completedTracks.includes(track.id) ? 'Completed this week ✓' : 'Mark as trained'}</button></article>)}</div></section>
     <section className="resource-dock"><div><p className="eyebrow">THE DEEPER TOOLKIT</p><h2>Resources worth<br /><em>having open.</em></h2></div><div className="resource-list">{resourceDock.map((resource) => <a href={resource.href} target="_blank" rel="noreferrer" key={resource.name}><span>{resource.label}</span><strong>{resource.name}</strong><p>{resource.detail}</p><i>Open resource ↗</i></a>)}</div></section>
     <footer><span>OPENING ATLAS — PLAY WITH INTENTION</span><span>Pieces: Cburnett set via Lichess · CC BY-SA</span></footer>
