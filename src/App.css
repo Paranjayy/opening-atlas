@@ -209,7 +209,7 @@ nav{height:78px;padding:0 clamp(24px,6vw,104px);display:flex;align-items:center;
 .practice-tactics .practice-flight,.practice-tactics .game-lab,.practice-tactics .planning-compass,.practice-tactics .structure-atlas,.practice-tactics .endgame-route,.practice-tactics .model-theatre{display:none}
 .practice-middlegame .practice-flight,.practice-middlegame .puzzle-zone,.practice-middlegame .tactics-compass,.practice-middlegame .structure-atlas,.practice-middlegame .endgame-route,.practice-middlegame .model-theatre{display:none}
 .practice-structures .practice-flight,.practice-structures .puzzle-zone,.practice-structures .tactics-compass,.practice-structures .game-lab,.practice-structures .planning-compass,.practice-structures .endgame-route,.practice-structures .model-theatre{display:none}
-.practice-endgames .practice-flight,.practice-endgames .puzzle-zone,.practice-endgames .tactics-compass,.practice-endgames .game-lab,.practice-endgames .planning-compass,.practice-endgames .structure-atlas,.practice-endgames .model-theatre{display:none}
+.practice-endgames .practice-flight,.practice-endgames .puzzle-zone,.practice-endgames .tactics-compass,.practice-endgames .planning-compass,.practice-endgames .structure-atlas,.practice-endgames .model-theatre{display:none}
 
 .practice-study-nav{display:none}
 .mobile-practice-bar{display:none}
