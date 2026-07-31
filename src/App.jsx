@@ -166,6 +166,7 @@ function App() {
   const [labLastMove, setLabLastMove] = useState(null)
   const [labFen, setLabFen] = useState(gameLabs[0].fen)
   const [intelligence, setIntelligence] = useState({ status: 'loading', moves: [] })
+  const [openingPulse, setOpeningPulse] = useState({ status: 'loading', pulse: [] })
   const [puzzle, setPuzzle] = useState({ status: 'loading' })
   const [puzzleFen, setPuzzleFen] = useState(null)
   const [puzzleSide, setPuzzleSide] = useState(null)
@@ -245,6 +246,11 @@ function App() {
     const evaluation = Number.isInteger(pv.mate) ? `M${pv.mate > 0 ? '+' : ''}${pv.mate}` : `${pv.cp >= 0 ? '+' : ''}${(pv.cp / 100).toFixed(2)}`
     return { ...pv, moves, evaluation }
   }), [engine.pvs, activeFen])
+  const pulseMoves = useMemo(() => openingPulse.pulse.map((row) => {
+    if (!row.move) return { ...row, san: '—' }
+    const test = new Chess(row.fen)
+    try { return { ...row, san: test.move({ from: row.move.move.slice(0, 2), to: row.move.move.slice(2, 4), promotion: row.move.move[4] })?.san || row.move.move } } catch { return { ...row, san: row.move.move } }
+  }), [openingPulse.pulse])
 
   const categories = ['All', ...new Set(openings.map((item) => item.category))]
   const visibleOpenings = openings.filter((item) => (filter === 'All' || item.category === filter) && item.name.toLowerCase().includes(query.toLowerCase()))
@@ -290,6 +296,14 @@ function App() {
       .catch((error) => { if (error.name !== 'AbortError') setIntelligence({ status: 'error', moves: [] }) })
     return () => controller.abort()
   }, [activeFen])
+  useEffect(() => {
+    const controller = new AbortController()
+    fetch('/api/opening-pulse', { signal: controller.signal })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Pulse unavailable')))
+      .then((data) => setOpeningPulse({ status: 'ready', ...data }))
+      .catch((error) => { if (error.name !== 'AbortError') setOpeningPulse({ status: 'error', pulse: [] }) })
+    return () => controller.abort()
+  }, [])
   useEffect(() => {
     if (activePieceCount > 7) { setTablebase({ status: 'ineligible', moves: [] }); return }
     const controller = new AbortController()
@@ -461,6 +475,7 @@ function App() {
     <aside className="quick-rail" aria-label="Jump to a learning area"><span>JUMP</span><a href="#repertoire-rail"><b>01</b><i>Openings</i></a><a href="#puzzle-zone"><b>02</b><i>Tactics</i></a><a href="#planning-compass"><b>03</b><i>Plans</i></a><a href="#endgame-route"><b>04</b><i>Endgames</i></a><a href="#game-review"><b>05</b><i>Review</i></a><a href="#player-desk"><b>06</b><i>Intel</i></a></aside>
     <section className="hero" id="top"><div><p className="eyebrow">THE FIRST 12 MOVES, REIMAGINED</p><h1>Learn the <em>why</em><br />behind your moves.</h1><p className="hero-copy">A living opening repertoire for people who want to understand the position—not memorize an endless tree.</p><a className="hero-cta" href="#study">Enter the study hall <span>↓</span></a></div><div className="hero-note"><p>Today’s rule</p><strong>“Every opening move should buy you a plan.”</strong><div><span>01 / 04</span><span>WHITE TO MOVE</span></div></div></section>
     <section className="repertoire-rail" id="repertoire-rail" aria-label="Opening selector"><div className="rail-intro"><div><p className="eyebrow">START HERE · {openings.length} LINES READY</p><strong>Choose your next<br />battlefield.</strong></div><div className="rail-filters"><button className={railFilter === 'All' ? 'active' : ''} onClick={() => setRailFilter('All')}>All systems</button><button className={railFilter === 'WHITE REPERTOIRE' ? 'active' : ''} onClick={() => setRailFilter('WHITE REPERTOIRE')}>As White</button><button className={railFilter === 'BLACK REPERTOIRE' ? 'active' : ''} onClick={() => setRailFilter('BLACK REPERTOIRE')}>As Black</button></div></div><div className="opening-strip">{railOpenings.map((item, index) => <button key={item.id} onClick={() => selectOpening(item.id)} className={item.id === openingId ? 'active' : ''}><span>{String(index + 1).padStart(2, '0')} · {item.eco}</span><b>{item.name}</b><small>{item.category} · {item.tempo}</small><i>{item.id === openingId ? 'In study ↓' : 'Study this →'}</i></button>)}</div></section>
+    <section className="opening-pulse"><div><p className="eyebrow">LIVE OPENING PULSE</p><h2>What does the<br /><em>database answer?</em></h2></div><div className="pulse-grid">{openingPulse.status === 'ready' ? pulseMoves.map((row) => <article key={row.id}><span>{row.label}</span><strong>{row.san}</strong><small>{row.name} · {row.move?.winrate ? `${Number(row.move.winrate).toFixed(1)}% White score` : 'live line'}</small></article>) : <p>{openingPulse.status === 'loading' ? 'Reading public opening replies…' : 'Live opening pulse is temporarily unavailable.'}</p>}</div><p className="pulse-source">Public source: <a href="https://www.chessdb.cn/" target="_blank" rel="noreferrer">ChessDB ↗</a> · Replies are a database signal, not a command.</p></section>
     <section className="study" id="study"><div className="study-intro"><div><p className="eyebrow">LESSON 01 / OPENING ATLAS</p><h2>Build the position.<br /><em>Understand the plan.</em></h2></div><div className="lesson-status"><span>YOUR PROGRESS</span><strong>{Math.round((ply / opening.moves.length) * 100)}%</strong><small>{mode === 'drill' ? 'Drill active' : 'Line exploration'}</small></div></div><aside className="repertoire"><p className="eyebrow">REPERTOIRE / {opening.tag}</p><h2>{opening.name}</h2><p>{opening.promise}</p><div className="line"><span>MAIN LINE</span>{opening.moves.map((move, i) => <button key={`${move}-${i}`} onClick={() => { setPly(i + 1); setMode('study') }} className={i === ply - 1 ? 'current' : ''}>{i % 2 === 0 ? `${Math.floor(i / 2) + 1}.` : ''} {move}</button>)}</div><button className="drill-button" onClick={startDrill}>Start move drill <span>→</span></button></aside>
       <div className="board-area"><div className="board-header"><span>{mode === 'drill' ? 'DRILL MODE' : 'EXPLORE THE LINE'}</span><div><button className="flip-button" onClick={flipBoard} aria-label="Flip board">↻</button><button disabled={!ply} onClick={previousMove}>←</button><span>{ply} / {opening.moves.length}</span><button disabled={ply === opening.moves.length} onClick={nextLineMove}>→</button></div></div><Board game={game} orientation={orientation} selected={selected} onSquare={handleSquare} lastMove={previous} /><p className="feedback">{feedback}</p><p className="key-hints"><kbd>←</kbd><kbd>H</kbd><kbd>A</kbd> previous · <kbd>→</kbd><kbd>L</kbd><kbd>D</kbd> next · <kbd>W</kbd>/<kbd>K</kbd> start · <kbd>S</kbd>/<kbd>J</kbd> end · <kbd>F</kbd> flip</p></div>
       <aside className="coach"><div><div className="coach-mark">♜</div><p className="eyebrow">POSITION COACH</p></div><div><h3>{nextMove ? `The next idea: ${nextMove}` : 'Main line complete'}</h3><p>{nextMove ? `${game.turn() === 'w' ? 'White' : 'Black'} to move. Find the move that carries the opening’s central idea forward.` : 'You have reached the first reference position. Now choose your plan.'}</p></div><div className="coach-actions"><div className="score"><span>DRILL SCORE</span><strong>{String(score).padStart(2, '0')}</strong></div><button onClick={startDrill}>Reset drill</button></div></aside></section>
