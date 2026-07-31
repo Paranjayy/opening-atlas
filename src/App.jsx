@@ -61,6 +61,13 @@ const gameLabs = [
   { id: 'end', label: '03 / ENDGAMES', title: 'King & pawn geometry', eyebrow: 'ENDGAME LAB', fen: '8/4k3/8/3K4/3P4/8/8/8 w - - 0 1', mission: 'Use opposition and the square rule to turn a pawn into a queen.', focus: ['Activate the king', 'Count the pawn’s square', 'Keep the opposition'], prompt: 'White to move. Can the king escort d4 safely, or must it gain opposition first?' },
 ]
 
+const curriculum = [
+  { id: 'opening', number: '01', title: 'Opening fluency', level: 'Foundation', detail: 'Know your first plans, not just your first moves.', tasks: ['Play 3 move drills', 'Explain one pawn break', 'Review one loss'] },
+  { id: 'tactics', number: '02', title: 'Tactical vision', level: 'Every day', detail: 'Calculate forcing moves before you calculate pretty moves.', tasks: ['Checks first', 'Captures second', 'Threats third'] },
+  { id: 'middle', number: '03', title: 'Middlegame plans', level: 'Pattern work', detail: 'Turn structure, space, and weak squares into a practical plan.', tasks: ['Name the imbalance', 'Improve worst piece', 'Choose the break'] },
+  { id: 'end', number: '04', title: 'Endgame technique', level: 'Essential', detail: 'Convert the positions that decide long games.', tasks: ['King activity', 'Pawn races', 'Basic opposition'] },
+]
+
 function Board({ game, orientation = 'w', onSquare, selected, lastMove }) {
   const squares = useMemo(() => {
     const rankOrder = orientation === 'w' ? [8, 7, 6, 5, 4, 3, 2, 1] : [1, 2, 3, 4, 5, 6, 7, 8]
@@ -92,6 +99,13 @@ function App() {
   const [filter, setFilter] = useState('All')
   const [orientation, setOrientation] = useState('w')
   const [activeLab, setActiveLab] = useState('middle')
+  const [intelligence, setIntelligence] = useState({ status: 'loading', moves: [] })
+  const [completedTracks, setCompletedTracks] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('atlas-tracks') || '[]')
+      return Array.isArray(saved) ? saved : []
+    } catch { return [] }
+  })
   const opening = openings.find((item) => item.id === openingId)
   const game = useMemo(() => { const g = new Chess(); opening.moves.slice(0, ply).forEach((move) => g.move(move)); return g }, [opening, ply])
   const previous = useMemo(() => {
@@ -99,13 +113,25 @@ function App() {
     const g = new Chess(); opening.moves.slice(0, ply - 1).forEach((move) => g.move(move)); const result = g.move(opening.moves[ply - 1]); return [result.from, result.to]
   }, [opening, ply])
   const nextMove = opening.moves[ply]
+  const currentFen = game.fen()
   const lab = gameLabs.find((item) => item.id === activeLab)
   const labGame = useMemo(() => new Chess(lab.fen), [lab])
+  const explorerMoves = useMemo(() => intelligence.moves.slice(0, 5).map((move) => {
+    const test = new Chess(currentFen)
+    try { return { ...move, san: test.move({ from: move.move.slice(0, 2), to: move.move.slice(2, 4), promotion: move.move[4] })?.san } } catch { return { ...move, san: move.move } }
+  }), [intelligence.moves, currentFen])
 
   const categories = ['All', ...new Set(openings.map((item) => item.category))]
   const visibleOpenings = openings.filter((item) => (filter === 'All' || item.category === filter) && item.name.toLowerCase().includes(query.toLowerCase()))
   function selectOpening(id) { setOpeningId(id); setPly(0); setMode('study'); setSelected(null); setFeedback('New line loaded. Walk through the opening or start a drill.'); document.querySelector('#study')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
   function toggleTheme() { const next = theme === 'light' ? 'dark' : 'light'; setTheme(next); localStorage.setItem('atlas-theme', next) }
+  function toggleTrack(id) {
+    setCompletedTracks((current) => {
+      const next = current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+      localStorage.setItem('atlas-tracks', JSON.stringify(next))
+      return next
+    })
+  }
   const previousMove = useCallback(() => { setPly((current) => Math.max(0, current - 1)); setMode('study') }, [])
   const nextLineMove = useCallback(() => { setPly((current) => Math.min(opening.moves.length, current + 1)); setMode('study') }, [opening.moves.length])
   const flipBoard = useCallback(() => { setOrientation((side) => side === 'w' ? 'b' : 'w') }, [])
@@ -126,6 +152,15 @@ function App() {
     window.addEventListener('keydown', handleKeyboard)
     return () => window.removeEventListener('keydown', handleKeyboard)
   }, [opening.moves.length, previousMove, nextLineMove, flipBoard])
+  useEffect(() => {
+    const controller = new AbortController()
+    setIntelligence({ status: 'loading', moves: [] })
+    fetch(`/api/chessdb?fen=${encodeURIComponent(currentFen)}`, { signal: controller.signal })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Data unavailable')))
+      .then((data) => setIntelligence({ status: 'ready', moves: data.moves || [], fetchedAt: data.fetchedAt }))
+      .catch((error) => { if (error.name !== 'AbortError') setIntelligence({ status: 'error', moves: [] }) })
+    return () => controller.abort()
+  }, [currentFen])
   function handleSquare(square) {
     if (mode !== 'drill') return
     if (!selected) { if (game.get(square)?.color === game.turn()) setSelected(square); return }
@@ -147,8 +182,10 @@ function App() {
       <div className="board-area"><div className="board-header"><span>{mode === 'drill' ? 'DRILL MODE' : 'EXPLORE THE LINE'}</span><div><button className="flip-button" onClick={flipBoard} aria-label="Flip board">↻</button><button disabled={!ply} onClick={previousMove}>←</button><span>{ply} / {opening.moves.length}</span><button disabled={ply === opening.moves.length} onClick={nextLineMove}>→</button></div></div><Board game={game} orientation={orientation} selected={selected} onSquare={handleSquare} lastMove={previous} /><p className="feedback">{feedback}</p><p className="key-hints"><kbd>←</kbd><kbd>H</kbd><kbd>A</kbd> previous · <kbd>→</kbd><kbd>L</kbd><kbd>D</kbd> next · <kbd>W</kbd>/<kbd>K</kbd> start · <kbd>S</kbd>/<kbd>J</kbd> end · <kbd>F</kbd> flip</p></div>
       <aside className="coach"><div><div className="coach-mark">♜</div><p className="eyebrow">POSITION COACH</p></div><div><h3>{nextMove ? `The next idea: ${nextMove}` : 'Main line complete'}</h3><p>{nextMove ? `${game.turn() === 'w' ? 'White' : 'Black'} to move. Find the move that carries the opening’s central idea forward.` : 'You have reached the first reference position. Now choose your plan.'}</p></div><div className="coach-actions"><div className="score"><span>DRILL SCORE</span><strong>{String(score).padStart(2, '0')}</strong></div><button onClick={startDrill}>Reset drill</button></div></aside></section>
     <section className="notes" id="field-notes"><div className="notes-title"><p className="eyebrow">FIELD NOTES</p><h2>The ideas that survive<br />when the book ends.</h2></div><article><span>01</span><h3>Plan of attack</h3><ul>{opening.plans.map((plan) => <li key={plan}>{plan}</li>)}</ul></article><article><span>02</span><h3>Common mistake</h3><p>{opening.trap}</p></article><article><span>03</span><h3>How to defend it</h3><p>{opening.defense}</p></article></section>
+    <section className="intelligence" aria-label="Live opening intelligence"><div className="intel-heading"><div><p className="eyebrow">LIVE POSITION DESK</p><h2>What the database<br /><em>likes from here.</em></h2></div><p>Current-position move quality, queried from ChessDB’s public analysis database. Use it as a second opinion—not a substitute for understanding the plan.</p></div><div className="intel-body"><div className="intel-status"><span className={`status-dot ${intelligence.status}`}></span><span>{intelligence.status === 'loading' ? 'Reading the position…' : intelligence.status === 'ready' ? `Live at move ${Math.ceil(ply / 2)}` : 'Connection paused'}</span><small>Source: <a href="https://www.chessdb.cn/" target="_blank" rel="noreferrer">ChessDB ↗</a></small></div><div className="intel-moves">{intelligence.status === 'ready' && explorerMoves.length ? explorerMoves.map((move) => <div className="intel-move" key={move.move}><strong>{move.san}</strong><span className="move-bar"><i style={{ width: `${Math.min(100, Math.max(8, Number(move.winrate) || 0))}%` }}></i></span><b>{move.winrate ? `${Number(move.winrate).toFixed(1)}%` : '—'}</b><small>{move.note || 'book'}</small></div>) : <p className="intel-empty">{intelligence.status === 'loading' ? 'Finding the strongest continuations…' : 'No live data for this exact position yet. Explore another point in the line.'}</p>}</div></div></section>
     <section className="library" id="library"><div className="library-heading"><div><p className="eyebrow">THE REPERTOIRE ROOM</p><h2>{openings.length} foundational<br /><em>opening systems.</em></h2></div><p>Choose a family, find your line, and take it straight to the board. This is a practical first library—not an intimidating encyclopedia.</p></div><div className="library-controls"><div className="filters">{categories.map((category) => <button key={category} className={filter === category ? 'chosen' : ''} onClick={() => setFilter(category)}>{category}</button>)}</div><label className="search"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find an opening" aria-label="Find an opening" /></label></div><div className="opening-library">{visibleOpenings.map((item) => <button className={`library-opening ${item.id === openingId ? 'selected-opening' : ''}`} onClick={() => selectOpening(item.id)} key={item.id}><span>{item.eco}</span><b>{item.name}</b><small>{item.category} · {item.tempo}</small><i>Study line →</i></button>)}{!visibleOpenings.length && <p className="empty">No opening found. Try another name or family.</p>}</div></section>
     <section className="game-lab" id="game-lab"><div className="lab-heading"><div><p className="eyebrow">YOUR COMPLETE GAME, ONE LAYER AT A TIME</p><h2>The opening is the invitation.<br /><em>The rest is the game.</em></h2></div><p>Opening Atlas now carries you beyond the first moves: train the decisions that convert a familiar position into points.</p></div><div className="lab-tabs">{gameLabs.map((item) => <button onClick={() => setActiveLab(item.id)} className={activeLab === item.id ? 'active' : ''} key={item.id}>{item.label}<strong>{item.title}</strong></button>)}</div><div className="lab-workspace"><div className="lab-board"><p className="eyebrow">{lab.eyebrow}</p><Board game={labGame} orientation="w" onSquare={() => {}} /><p>{lab.mission}</p></div><div className="lab-brief"><p className="eyebrow">THINK BEFORE YOU MOVE</p><h3>{lab.title}</h3><p>{lab.prompt}</p><ol>{lab.focus.map((item) => <li key={item}>{item}</li>)}</ol><button onClick={() => document.querySelector('#study')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>Return to opening study <span>↑</span></button></div></div></section>
+    <section className="curriculum" id="curriculum"><div className="curriculum-top"><div><p className="eyebrow">THE PATH TO STRONG CHESS</p><h2>Train what actually<br /><em>makes you dangerous.</em></h2></div><div className="completion"><span>TRACKS COMPLETE</span><strong>{completedTracks.length}<i>/</i>{curriculum.length}</strong><p>Build a balanced game. Mark a track when you’ve trained it this week.</p></div></div><div className="curriculum-grid">{curriculum.map((track) => <article key={track.id} className={completedTracks.includes(track.id) ? 'done' : ''}><div><span>{track.number}</span><small>{track.level}</small></div><h3>{track.title}</h3><p>{track.detail}</p><ul>{track.tasks.map((task) => <li key={task}>{task}</li>)}</ul><button onClick={() => toggleTrack(track.id)} aria-pressed={completedTracks.includes(track.id)}>{completedTracks.includes(track.id) ? 'Completed this week ✓' : 'Mark as trained'}</button></article>)}</div></section>
     <footer><span>OPENING ATLAS — PLAY WITH INTENTION</span><span>Pieces: Cburnett set via Lichess · CC BY-SA</span></footer>
   </main>
 }
