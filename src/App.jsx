@@ -279,7 +279,7 @@ function App() {
   const [labFeedback, setLabFeedback] = useState('Choose a piece, then make the move that proves the idea.')
   const [labSolved, setLabSolved] = useState(false)
   const [labLastMove, setLabLastMove] = useState(null)
-  const [labFen, setLabFen] = useState(gameLabs[0].fen)
+  const [labFen, setLabFen] = useState(() => gameLabs.find((item) => item.id === 'middle').fen)
   const [labReflection, setLabReflection] = useState('')
   const [labReflections, setLabReflections] = useState(() => {
     try { const saved = JSON.parse(localStorage.getItem('atlas-lab-reflections') || '[]'); return Array.isArray(saved) ? saved : [] } catch { return [] }
