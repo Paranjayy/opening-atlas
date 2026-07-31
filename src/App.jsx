@@ -643,10 +643,10 @@ function App() {
     setFeedback('New line loaded. Walk through the opening or start a drill.')
     requestAnimationFrame(() => document.querySelector('#study')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
-  function queueRevision({ kind, sourceId, title, detail }) {
+  function queueRevision({ kind, sourceId, title, detail, area }) {
     setRevisionItems((current) => {
       if (current.some((item) => item.kind === kind && item.sourceId === sourceId)) return current
-      const next = [{ id: `${kind}-${sourceId}`, kind, sourceId, title, detail, interval: 0, reps: 0, dueAt: new Date().toISOString(), createdAt: new Date().toISOString() }, ...current].slice(0, 30)
+      const next = [{ id: `${kind}-${sourceId}`, kind, sourceId, title, detail, area, interval: 0, reps: 0, dueAt: new Date().toISOString(), createdAt: new Date().toISOString() }, ...current].slice(0, 30)
       localStorage.setItem('atlas-revision-items', JSON.stringify(next))
       return next
     })
@@ -668,6 +668,10 @@ function App() {
     else if (item.kind === 'endgame') { setActiveEndgame(item.sourceId); navigatePractice('endgames') }
     else if (item.kind === 'planning') { setActivePlanningLens(item.sourceId); navigatePractice('middlegame') }
     else if (item.kind === 'tactic') { setActivePattern(item.sourceId); navigatePractice('tactics') }
+    else if (item.kind === 'focus') {
+      if (item.area === 'opening') navigate('openings')
+      else navigatePractice(item.area === 'middle' ? 'middlegame' : item.area === 'end' ? 'endgames' : 'tactics')
+    }
     else { setActiveLab(item.sourceId); navigate('practice', 'game-lab') }
   }
   function recordMistake(item) {
@@ -992,22 +996,26 @@ function App() {
     const fallback = reviewMove ? `Review ${reviewMove.san}: ${reviewMoment}` : ''
     const note = focusDraft.trim() || fallback
     if (!note) return
+    const focusId = `${Date.now()}-${focusArea}`
     setFocusItems((current) => {
-      const next = [{ id: `${Date.now()}-${focusArea}`, area: focusArea, note, createdAt: new Date().toISOString() }, ...current].slice(0, 12)
+      const next = [{ id: focusId, area: focusArea, note, createdAt: new Date().toISOString() }, ...current].slice(0, 12)
       localStorage.setItem('atlas-focus-items', JSON.stringify(next))
       return next
     })
+    queueRevision({ kind: 'focus', sourceId: focusId, title: `${journalAreas.find((area) => area.id === focusArea)?.label || 'Chess'} review focus`, detail: note, area: focusArea })
     setFocusDraft('')
   }
   function saveReviewPrescription() {
     if (!reviewPrescription) return
     const note = `${reviewPrescription.title}: ${reviewPrescription.detail}`
+    const focusId = `prescription-${reviewPrescription.area}-${review?.moves.length || 0}`
     setFocusItems((current) => {
       if (current.some((item) => item.note === note)) return current
-      const next = [{ id: `${Date.now()}-${reviewPrescription.area}`, area: reviewPrescription.area, note, createdAt: new Date().toISOString() }, ...current].slice(0, 12)
+      const next = [{ id: focusId, area: reviewPrescription.area, note, createdAt: new Date().toISOString() }, ...current].slice(0, 12)
       localStorage.setItem('atlas-focus-items', JSON.stringify(next))
       return next
     })
+    queueRevision({ kind: 'focus', sourceId: focusId, title: `${journalAreas.find((area) => area.id === reviewPrescription.area)?.label || 'Chess'} review focus`, detail: note, area: reviewPrescription.area })
   }
   function launchReviewPrescription() {
     if (!reviewPrescription) return
