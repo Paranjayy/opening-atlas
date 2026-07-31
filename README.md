@@ -12,6 +12,7 @@ First Rank is a browser-first chess learning workspace: build an opening reperto
 - `/analysis?fen=...` — a shareable FEN position with ChessDB, cloud engine, and tablebase tools
 - `/review` — local PGN review and training-focus capture
 - `/scout` — public Lichess profile, format, and rating-history context
+- `/scout/:username` — a direct public Lichess report, such as `/scout/DrNykterstein`
 - `/learn` — daily program, coordinate gym, reference studies, and export
 - `/learn/:path` — a direct level route: `foundation`, `improver`, `competitive`, or `advanced`
 
