@@ -135,3 +135,28 @@ nav{height:78px;padding:0 clamp(24px,6vw,104px);display:flex;align-items:center;
   .dock-links small{margin-top:7px;color:#adbdac;font-size:11px;line-height:1.35}
   .dock-links i{position:absolute;right:18px;top:31px;color:#e99a71;font-style:normal}
 }
+
+/* Opening work gets its own client-like side rails: map left, notation sheet right. */
+.workspace-study-nav{display:none}
+@media(min-width:1401px){
+  .workspace-openings{padding-left:220px}
+  .workspace-study-nav{position:fixed;z-index:30;top:70px;bottom:0;left:0;width:220px;display:flex;flex-direction:column;overflow-y:auto;background:#17251b;color:#f4eee2;border-right:1px solid #405344}
+  .study-nav-title{padding:22px 18px 17px;border-bottom:1px solid #405344}
+  .study-nav-title span,.study-nav-title small,.study-nav-switch>span{display:block;font:9px 'DM Mono';letter-spacing:.08em;text-transform:uppercase}
+  .study-nav-title span,.study-nav-switch>span{color:#e99a71}
+  .study-nav-title strong{display:block;margin:11px 0 7px;font:400 25px/.95 'DM Serif Display';letter-spacing:-.035em}
+  .study-nav-title small{color:#aebcac}
+  .study-nav-sections{display:grid;padding:9px 0;border-bottom:1px solid #405344}
+  .study-nav-sections button{display:grid;grid-template-columns:26px 1fr;gap:3px 7px;padding:11px 16px;border:0;background:transparent;color:#dce5d7;text-align:left}
+  .study-nav-sections button:hover{background:#2d4234}
+  .study-nav-sections span{grid-row:1/3;color:#e99a71;font:9px 'DM Mono'}
+  .study-nav-sections strong{font:700 11px 'DM Mono'}
+  .study-nav-sections small{color:#aebcac;font-size:10px;line-height:1.2}
+  .study-nav-switch{display:grid;gap:1px;padding:18px 0 12px}
+  .study-nav-switch>span{padding:0 16px 7px}
+  .study-nav-switch button{display:grid;grid-template-columns:34px 1fr;gap:6px;padding:9px 16px;border:0;background:transparent;color:#dce5d7;text-align:left}
+  .study-nav-switch button:hover{background:#2d4234}
+  .study-nav-switch small{color:#9eb09d;font:9px 'DM Mono'}
+  .study-nav-switch strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 17px/.95 'DM Serif Display';letter-spacing:-.02em}
+  .study-nav-switch .all-openings{display:block;margin:11px 16px 0;padding:10px 0;border-top:1px solid #405344;color:#e99a71;font:800 9px 'DM Mono';letter-spacing:.06em;text-transform:uppercase}
+}
