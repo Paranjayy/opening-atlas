@@ -752,6 +752,16 @@ function App() {
       }
       const tag = event.target.tagName
       if (event.metaKey || event.ctrlKey || event.altKey || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || event.target.isContentEditable) return
+      if (page === 'review' && review) {
+        const reviewActions = {
+          arrowleft: () => setReviewPly((current) => Math.max(0, current - 1)), h: () => setReviewPly((current) => Math.max(0, current - 1)), a: () => setReviewPly((current) => Math.max(0, current - 1)),
+          arrowright: () => setReviewPly((current) => Math.min(review.moves.length, current + 1)), l: () => setReviewPly((current) => Math.min(review.moves.length, current + 1)), d: () => setReviewPly((current) => Math.min(review.moves.length, current + 1)),
+          arrowup: () => setReviewPly(0), k: () => setReviewPly(0), w: () => setReviewPly(0),
+          arrowdown: () => setReviewPly(review.moves.length), j: () => setReviewPly(review.moves.length), s: () => setReviewPly(review.moves.length),
+        }
+        if (reviewActions[key]) { event.preventDefault(); reviewActions[key](); return }
+      }
+      if (page !== 'openings' || !/^\/openings\/[^/]+$/.test(window.location.pathname)) return
       const actions = {
         arrowleft: previousMove, h: previousMove, a: previousMove,
         arrowright: nextLineMove, l: nextLineMove, d: nextLineMove,
@@ -763,7 +773,7 @@ function App() {
     }
     window.addEventListener('keydown', handleKeyboard)
     return () => window.removeEventListener('keydown', handleKeyboard)
-  }, [opening.moves.length, previousMove, nextLineMove, flipBoard, commandOpen, commandItems, commandIndex])
+  }, [opening.moves.length, previousMove, nextLineMove, flipBoard, commandOpen, commandItems, commandIndex, page, review])
   useEffect(() => {
     const syncPage = () => { const nextPage = pageFromLocation(); const scoutUser = scoutUserFromLocation(); setPage(nextPage); setOpeningId(openingFromLocation()); setActiveCapability(learnPathFromLocation()); setProfileName(scoutUser); setScoutRoute(scoutUser); setAnalysisPosition(sharedAnalysisFromLocation()); const target = practiceTargetFromLocation(); if (nextPage === 'practice' && target) requestAnimationFrame(() => document.querySelector(`#${target}`)?.scrollIntoView({ behavior: 'auto', block: 'start' })); if (nextPage === 'learn' && window.location.pathname.split('/').filter(Boolean)[1]) requestAnimationFrame(() => document.querySelector('#capability-ladder')?.scrollIntoView({ behavior: 'auto', block: 'start' })) }
     window.addEventListener('popstate', syncPage)
