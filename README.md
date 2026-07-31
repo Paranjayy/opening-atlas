@@ -1,16 +1,32 @@
-# React + Vite
+# First Rank
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+First Rank is a browser-first chess learning workspace: build an opening repertoire, practice middlegame plans and endgames, review PGNs, inspect positions, and use public Lichess/ChessDB signals without an account.
 
-Currently, two official plugins are available:
+## Workspaces
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- `/` — daily boardwork, recall queue, and learning ledger
+- `/openings` — opening atlas and drills
+- `/openings/:openingId` — a shareable opening study, such as `/openings/sicilian`
+- `/practice` — tactics, pawn structures, middlegame labs, and endgame routes
+- `/analysis?fen=...` — a shareable FEN position with ChessDB, cloud engine, and tablebase tools
+- `/review` — local PGN review and training-focus capture
+- `/scout` — public Lichess profile, format, and rating-history context
+- `/learn` — daily program, coordinate gym, reference studies, and export
 
-## React Compiler
+## Public data sources
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- [ChessDB](https://www.chessdb.cn/) for current-position opening candidates
+- [Lichess](https://lichess.org/) for public profiles, rating history, cloud evaluation, tablebases, and daily puzzles
 
-## Expanding the Oxlint configuration
+Public data is read only. Personal notes, repertoire choices, review queue, and progress live locally in the browser.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## Development
+
+```bash
+npm install
+npm run dev
+npm run lint
+npm run build
+```
+
+`vercel.json` rewrites application routes to the Vite entry point so direct workspace and study URLs work in production.
