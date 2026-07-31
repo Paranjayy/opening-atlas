@@ -298,6 +298,9 @@ function App() {
   const [savedOpenings, setSavedOpenings] = useState(() => {
     try { const saved = JSON.parse(localStorage.getItem('atlas-repertoire') || '[]'); return Array.isArray(saved) ? saved : [] } catch { return [] }
   })
+  const [openingMastery, setOpeningMastery] = useState(() => {
+    try { const saved = JSON.parse(localStorage.getItem('atlas-opening-mastery') || '{}'); return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {} } catch { return {} }
+  })
   const [revisionItems, setRevisionItems] = useState(() => {
     try { const saved = JSON.parse(localStorage.getItem('atlas-revision-items') || '[]'); return Array.isArray(saved) ? saved : [] } catch { return [] }
   })
@@ -832,13 +835,21 @@ function App() {
     setLabReflection('')
     setLabFeedback('Choose a piece, then make the move that proves the idea.')
   }, [activeLab, lab.fen])
+  function recordOpeningMastery(completed = false) {
+    setOpeningMastery((current) => {
+      const previous = current[opening.id] || { correct: 0, completions: 0 }
+      const next = { ...current, [opening.id]: { correct: previous.correct + 1, completions: previous.completions + (completed ? 1 : 0), lastDrilledAt: new Date().toISOString() } }
+      localStorage.setItem('atlas-opening-mastery', JSON.stringify(next))
+      return next
+    })
+  }
   function handleSquare(square) {
     if (mode !== 'drill') return
     if (!selected) { if (game.get(square)?.color === game.turn()) setSelected(square); return }
     const test = new Chess(game.fen())
     try {
       const made = test.move({ from: selected, to: square, promotion: 'q' })
-      if (made.san === nextMove) { setPly((p) => p + 1); setScore((s) => s + 1); bumpStat('bookMoves'); setFeedback(`Exactly. ${made.san} is the book move.`) }
+      if (made.san === nextMove) { const finishesLine = ply + 1 === opening.moves.length; setPly((p) => p + 1); setScore((s) => s + 1); bumpStat('bookMoves'); recordOpeningMastery(finishesLine); setFeedback(finishesLine ? `Line complete. ${opening.name} is now ready for a spaced recall.` : `Exactly. ${made.san} is the book move.`) }
       else { setFeedback(`${made.san} is playable, but this drill is looking for ${nextMove}. Try again.`); recordMistake({ area: 'opening', sourceId: opening.id, title: `${opening.name}: ${made.san}`, detail: `The drill expected ${nextMove}. Rebuild the opening’s first plan before replaying this branch.` }) }
     } catch { setFeedback('That piece cannot go there. Follow its legal movement.') }
     setSelected(null)
@@ -1040,6 +1051,7 @@ function App() {
       repertoireIds: savedOpenings,
       repertoire: savedOpenings.map((id) => openings.find((item) => item.id === id)?.name).filter(Boolean),
       openingNotes,
+      openingMastery,
       analysisTrail,
       revisionItems,
       mistakes: mistakeBook,
@@ -1078,6 +1090,7 @@ function App() {
       const restore = (value, setter, key, fallback) => { const next = value ?? fallback; setter(next); localStorage.setItem(key, JSON.stringify(next)) }
       restore(legacyRepertoire, setSavedOpenings, 'atlas-repertoire', [])
       restore(object(payload.openingNotes), setOpeningNotes, 'atlas-opening-notes', {})
+      restore(object(payload.openingMastery), setOpeningMastery, 'atlas-opening-mastery', {})
       restore(lists(payload.analysisTrail, 8), setAnalysisTrail, 'atlas-analysis-trail', [])
       restore(lists(payload.revisionItems, 30), setRevisionItems, 'atlas-revision-items', [])
       restore(lists(payload.mistakes, 20), setMistakeBook, 'atlas-mistake-book', [])
@@ -1237,6 +1250,7 @@ function App() {
     <section className="resource-dock"><div><p className="eyebrow">THE DEEPER TOOLKIT</p><h2>Resources worth<br /><em>having open.</em></h2></div><div className="resource-list">{resourceDock.map((resource) => <a href={resource.href} target="_blank" rel="noreferrer" key={resource.name}><span>{resource.label}</span><strong>{resource.name}</strong><p>{resource.detail}</p><i>Open resource ↗</i></a>)}</div></section>
     {page === 'practice' && <section className="structure-atlas" id="structure-atlas"><div className="structure-heading"><div><p className="eyebrow">PAWN STRUCTURE ATLAS</p><h2>When the pawns<br /><em>tell the plan.</em></h2></div><p>Structures are the chessboard’s long memory. Once you recognize one, you can stop guessing and start looking for the breaks, squares, and piece trades that make sense.</p></div><div className="structure-workspace"><div className="structure-index">{pawnStructures.map((item, index) => <button className={activeStructure === item.id ? 'active' : ''} onClick={() => setActiveStructure(item.id)} key={item.id}><span>{String(index + 1).padStart(2, '0')}</span><strong>{item.title}</strong><small>{item.label}</small></button>)}</div><article className="structure-lesson"><p className="eyebrow">{pawnStructure.label}</p><h3>{pawnStructure.title}</h3><div><span>THE SIGNAL</span><p>{pawnStructure.signal}</p></div><div><span>THE PLAN</span><p>{pawnStructure.plan}</p></div><div><span>KEY BREAKS</span><strong>{pawnStructure.breaks}</strong></div><div><span>WATCH OUT</span><p>{pawnStructure.warning}</p></div><button onClick={() => navigate('analysis', 'position-desk')}>Bring a structure to analysis ↗</button></article></div></section>}
     {page === 'learn' && <section className="study-export"><div><p className="eyebrow">YOUR STUDY, YOURS TO KEEP</p><h2>Take your<br /><em>work with you.</em></h2></div><div><p>Download a private JSON snapshot of your repertoire, field notes, recall queue, patterns, techniques, practice journal, and boardwork history. Nothing is uploaded.</p><div className="snapshot-actions"><button onClick={exportStudySnapshot}>Download my study snapshot <span>↓</span></button><label>Restore a First Rank snapshot<input type="file" accept="application/json,.json" onChange={importStudySnapshot} /></label></div><small className="snapshot-feedback">{snapshotFeedback}</small></div></section>}
+    {page === 'openings' && <section className="opening-mastery" aria-label="Opening drill mastery"><div><p className="eyebrow">REPERTOIRE EVIDENCE</p><h2>Played, not<br /><em>just saved.</em></h2><p>Correct moves and complete recall runs are recorded per opening. A bookmark means you like a line; a completed drill means you can start to use it.</p></div><div className="mastery-ledger">{(savedOpenings.length ? savedOpenings : [opening.id]).slice(0, 6).map((id) => { const item = openings.find((candidate) => candidate.id === id); const record = openingMastery[id] || { correct: 0, completions: 0 }; return <button onClick={() => selectOpening(id)} key={id}><span>{item.eco}</span><strong>{item.name}</strong><div><b>{record.correct}</b><small>correct moves</small><b>{record.completions}</b><small>complete runs</small></div><i>{id === opening.id ? 'On board' : 'Open drill →'}</i></button>})}</div></section>}
     {page === 'review' && <section className="lichess-game-import" id="lichess-import" aria-label="Import a public Lichess game"><div><p className="eyebrow">PUBLIC LICHESS GAME IMPORT</p><h2>Bring a game<br /><em>straight in.</em></h2><p>Paste a public Lichess game URL or the eight-character game ID. First Rank fetches the PGN, reads it locally, and opens the same decision review.</p></div><div><label htmlFor="lichess-game">PUBLIC GAME URL OR ID</label><div className="game-import-form"><input id="lichess-game" value={lichessGameInput} onChange={(event) => setLichessGameInput(event.target.value)} placeholder="lichess.org/xxxxxxxx" /><button onClick={importLichessGame}>Import game →</button></div><small>No sign-in. Public game data only.</small></div></section>}
     <footer><span>FIRST RANK — PLAY WITH INTENTION</span><span>Pieces: Cburnett set via Lichess · CC BY-SA</span></footer>
   </main>
