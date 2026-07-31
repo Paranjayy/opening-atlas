@@ -5,7 +5,7 @@ First Rank is a browser-first chess learning workspace: build an opening reperto
 ## Workspaces
 
 - `/` — daily boardwork, live Lichess TV pulse, recall queue, and learning ledger
-- `/openings` — opening atlas and drills
+- `/openings` — opening atlas, complete-repertoire blueprint, and drills
 - `/openings/:openingId` — a shareable opening study, such as `/openings/sicilian`
 - `/practice` — tactics, pawn structures, middlegame labs, and endgame routes
 - `/practice/:route` — a direct practice destination: `tactics`, `middlegame`, `structures`, or `endgames`
