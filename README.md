@@ -4,7 +4,7 @@ First Rank is a browser-first chess learning workspace: build an opening reperto
 
 ## Workspaces
 
-- `/` — daily boardwork, recall queue, and learning ledger
+- `/` — daily boardwork, live Lichess TV pulse, recall queue, and learning ledger
 - `/openings` — opening atlas and drills
 - `/openings/:openingId` — a shareable opening study, such as `/openings/sicilian`
 - `/practice` — tactics, pawn structures, middlegame labs, and endgame routes
@@ -17,7 +17,7 @@ First Rank is a browser-first chess learning workspace: build an opening reperto
 ## Public data sources
 
 - [ChessDB](https://www.chessdb.cn/) for current-position opening candidates
-- [Lichess](https://lichess.org/) for public profiles, rating history, cloud evaluation, tablebases, and daily puzzles
+- [Lichess](https://lichess.org/) for public profiles, rating history, TV boards, cloud evaluation, tablebases, and daily puzzles
 
 Public data is read only. Personal notes, repertoire choices, review queue, and progress live locally in the browser.
 
