@@ -212,6 +212,17 @@ nav{height:78px;padding:0 clamp(24px,6vw,104px);display:flex;align-items:center;
 .practice-endgames .practice-flight,.practice-endgames .puzzle-zone,.practice-endgames .tactics-compass,.practice-endgames .game-lab,.practice-endgames .planning-compass,.practice-endgames .structure-atlas,.practice-endgames .model-theatre{display:none}
 
 .practice-study-nav{display:none}
+.mobile-practice-bar{display:none}
+@media(max-width:900px){
+  .mobile-practice-bar{position:sticky;z-index:35;top:64px;display:grid;grid-template-columns:repeat(4,1fr);background:#23372c;color:#f4eee2;border-bottom:1px solid #506451}
+  .mobile-practice-bar button{min-width:0;padding:10px 4px;border:0;border-right:1px solid #405344;background:transparent;color:#d8e1d3;text-align:center}
+  .mobile-practice-bar button:last-child{border-right:0}
+  .mobile-practice-bar button.active{background:#e99a71;color:#203329}
+  .mobile-practice-bar span,.mobile-practice-bar strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mobile-practice-bar span{font:8px 'DM Mono';letter-spacing:.06em;color:#e99a71}
+  .mobile-practice-bar button.active span{color:#4b402e}
+  .mobile-practice-bar strong{margin-top:4px;font:700 10px 'DM Mono'}
+}
 @media(min-width:1201px){
   .workspace-practice{padding-left:220px}
   .practice-study-nav{position:fixed;z-index:30;top:70px;bottom:0;left:0;width:220px;display:flex;flex-direction:column;overflow-y:auto;background:#17251b;color:#f4eee2;border-right:1px solid #405344}
