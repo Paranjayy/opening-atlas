@@ -190,6 +190,8 @@ function App() {
   const [puzzleFeedback, setPuzzleFeedback] = useState('Load the position and find the forcing move.')
   const [engine, setEngine] = useState({ status: 'loading', pvs: [] })
   const [analysisPosition, setAnalysisPosition] = useState(null)
+  const [fenDraft, setFenDraft] = useState('')
+  const [fenFeedback, setFenFeedback] = useState('Paste a FEN or choose a phase preset to open a live analysis desk.')
   const [tablebase, setTablebase] = useState({ status: 'idle', moves: [] })
   const [profileName, setProfileName] = useState('')
   const [profile, setProfile] = useState({ status: 'idle' })
@@ -560,6 +562,22 @@ function App() {
     setAnalysisPosition({ fen: endgameLesson.fen, label: `${endgameLesson.title} technique` })
     navigate('analysis', 'position-desk')
   }
+  function openAnalysisPosition(fen, label) {
+    try {
+      const position = new Chess(fen.trim())
+      setAnalysisPosition({ fen: position.fen(), label })
+      setFenDraft(position.fen())
+      setFenFeedback(`Loaded ${label}. Database, engine, and tablebase checks are now pointed at this position.`)
+      navigate('analysis', 'position-desk')
+    } catch {
+      setFenFeedback('That FEN is not a legal chess position. Include all six FEN fields, then try again.')
+    }
+  }
+  function submitFen(event) {
+    event.preventDefault()
+    if (!fenDraft.trim()) { setFenFeedback('Paste a complete FEN first, or use one of the phase presets.'); return }
+    openAnalysisPosition(fenDraft, 'Custom position')
+  }
   function handleLabSquare(square) {
     if (labSolved) return
     if (!labSelected) { if (labGame.get(square)?.color === labGame.turn()) setLabSelected(square); return }
@@ -575,6 +593,7 @@ function App() {
   return <main className={`app workspace-${page} ${theme === 'dark' ? 'dark' : ''}`}>
     <nav className="workspace-nav"><button className="brand" onClick={() => navigate('home')}><span>♞</span> first<span>rank</span></button><div className="nav-links">{[['home', 'Home'], ['openings', 'Openings'], ['practice', 'Practice'], ['analysis', 'Analysis'], ['review', 'Review'], ['learn', 'Learn']].map(([id, label]) => <button className={page === id ? 'active' : ''} onClick={() => navigate(id)} key={id}>{label}</button>)}</div><div className="nav-utility"><button className="theme-toggle" onClick={toggleTheme} aria-label="Toggle color theme">{theme === 'light' ? '◐ Dark' : '◑ Light'}</button><button className="streak">⚡ Learn daily</button></div></nav>
     <aside className="quick-rail" aria-label="Workspace navigation"><span>FIRST RANK</span>{[['home', 'Home', '01'], ['openings', 'Openings', '02'], ['practice', 'Practice', '03'], ['analysis', 'Analysis', '04'], ['review', 'Review', '05'], ['learn', 'Learn', '06']].map(([id, label, number]) => <button className={page === id ? 'active' : ''} onClick={() => navigate(id)} key={id}><b>{number}</b><i>{label}</i></button>)}</aside>
+    <section className="position-launcher"><div><p className="eyebrow">UNIVERSAL POSITION DESK</p><h2>Bring any board<br /><em>into focus.</em></h2><p>Use a FEN from a game, course, or book. First Rank routes it through the same live database, cloud engine, and exact tablebase tools as every lesson.</p></div><form onSubmit={submitFen}><label htmlFor="fen-draft">FEN / FORSYTH–EDWARDS NOTATION</label><textarea id="fen-draft" value={fenDraft} onChange={(event) => setFenDraft(event.target.value)} placeholder="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" /><div className="preset-row"><button type="button" onClick={() => openAnalysisPosition('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 'Initial position')}>Opening preset</button><button type="button" onClick={() => openAnalysisPosition(gameLabs[0].fen, 'Middlegame preset')}>Middlegame preset</button><button type="button" onClick={() => openAnalysisPosition(gameLabs[1].fen, 'Endgame preset')}>Endgame preset</button></div><button className="open-position" type="submit">Open live position <span>→</span></button><p className="fen-feedback">{fenFeedback}</p></form></section>
     <section data-workspace="home" className="hero" id="top"><div><p className="eyebrow">THE CHESS LEARNING WORKSPACE</p><h1>Learn the <em>why</em><br />behind your moves.</h1><p className="hero-copy">A focused place to build an opening repertoire, practice plans, review games, and develop endgame technique.</p><button className="hero-cta" onClick={() => navigate('openings')}>Open your repertoire <span>→</span></button></div><div className="hero-note"><p>Today’s rule</p><strong>“Every opening move should buy you a plan.”</strong><div><span>FIRST RANK</span><span>WORKSPACE</span></div></div></section>
     <section className="revision-deck"><div className="revision-heading"><div><p className="eyebrow">MEMORY, NOT MOMENTUM</p><h2>Your next<br /><em>useful recall.</em></h2></div><p>Every saved opening and written lab insight enters a small spaced-review queue. Mark it only after you can explain the idea without looking.</p></div><div className="revision-metrics"><span><b>{dueRevisions.length}</b> due now</span><span><b>{revisionItems.length}</b> concepts held</span><span><b>{upcomingRevisions.length}</b> returning later</span></div><div className="revision-list">{dueRevisions.length ? dueRevisions.slice(0, 4).map((item) => <article key={item.id}><div><span>{item.kind === 'opening' ? 'OPENING RECALL' : 'POSITION RECALL'} · {revisionTiming(item)}</span><h3>{item.title}</h3><p>{item.detail}</p></div><div><button onClick={() => openRevision(item)}>Open board →</button><button onClick={() => completeRevision(item.id)}>I recalled it ✓</button></div></article>) : <div className="revision-empty"><span>♞</span><strong>{revisionItems.length ? 'Nothing urgent. Let the ideas breathe.' : 'Your recall queue is empty.'}</strong><p>{revisionItems.length ? `Next return: ${revisionTiming(upcomingRevisions[0])}.` : 'Save an opening or keep a lab reflection; First Rank will bring it back at the right time.'}</p></div>}</div></section>
     <section className="home-command"><div><p className="eyebrow">YOUR BOARDWORK</p><h2>One board.<br /><em>One useful job.</em></h2></div><div className="home-routes"><button onClick={() => navigate('openings')}><span>01 · REPERTOIRE</span><strong>Openings</strong><p>{savedOpenings.length ? `${savedOpenings.length} systems saved · continue your line` : 'Choose a system and learn the plan behind it'}</p><i>Go to openings →</i></button><button onClick={() => navigate('practice')}><span>02 · TRAINING</span><strong>Practice</strong><p>Daily tactics, middlegame plans, and endgame technique.</p><i>Start a drill →</i></button><button onClick={() => navigate('review')}><span>03 · FEEDBACK</span><strong>Review</strong><p>{focusItems.length ? `${focusItems.length} focus item${focusItems.length === 1 ? '' : 's'} waiting` : 'Turn your recent game into a concrete training focus'}</p><i>Review a game →</i></button><button onClick={() => navigate('learn')}><span>04 · PROGRAM</span><strong>Learn</strong><p>{journalTotal ? `${journalTotal} minutes logged this week` : `Start with 15 minutes of ${leastTrained.label.toLowerCase()}`}</p><i>See the plan →</i></button></div></section>
