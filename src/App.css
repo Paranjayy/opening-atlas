@@ -134,6 +134,12 @@ nav{height:78px;padding:0 clamp(24px,6vw,104px);display:flex;align-items:center;
   .dock-links strong{font:700 12px 'DM Mono'}
   .dock-links small{margin-top:7px;color:#adbdac;font-size:11px;line-height:1.35}
   .dock-links i{position:absolute;right:18px;top:31px;color:#e99a71;font-style:normal}
+  .dock-trail{display:grid;gap:1px;margin-top:auto;border-top:1px solid #405344;background:#142118}
+  .dock-trail>span{padding:14px 16px 7px;color:#e99a71;font:9px 'DM Mono';letter-spacing:.07em;text-transform:uppercase}
+  .dock-trail button{display:grid;gap:4px;padding:9px 16px 10px;border:0;border-top:1px solid #314538;background:transparent;color:#e8efe2;text-align:left}
+  .dock-trail button:hover{background:#2d4234}
+  .dock-trail strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:700 10px 'DM Mono'}
+  .dock-trail small{color:#9eb09d;font-size:9px}
 }
 
 /* Opening work gets its own client-like side rails: map left, notation sheet right. */
