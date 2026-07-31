@@ -9,7 +9,12 @@ export default async function handler(req, res) {
     })
     if (response.status === 404) return res.status(404).json({ error: 'That public Lichess profile was not found.' })
     if (!response.ok) throw new Error(`Lichess returned ${response.status}`)
-    const data = await response.json()
+    const [data, history] = await Promise.all([
+      response.json(),
+      fetch(`https://lichess.org/api/user/${encodeURIComponent(username)}/rating-history`, {
+        headers: { Accept: 'application/json', 'User-Agent': 'Opening-Atlas/1.0' },
+      }).then((ratingResponse) => ratingResponse.ok ? ratingResponse.json() : []),
+    ])
     const perfs = Object.fromEntries(['bullet', 'blitz', 'rapid', 'classical', 'puzzle'].flatMap((key) => data.perfs?.[key]?.games || data.perfs?.[key]?.rating ? [[key, data.perfs[key]]] : []))
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=3600')
     return res.status(200).json({
@@ -21,6 +26,7 @@ export default async function handler(req, res) {
       playTime: data.playTime || {},
       online: Boolean(data.online),
       seenAt: data.seenAt || null,
+      ratingHistory: Array.isArray(history) ? history : [],
     })
   } catch {
     return res.status(502).json({ error: 'Lichess profile data is temporarily unavailable.' })
