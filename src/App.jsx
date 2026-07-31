@@ -132,6 +132,8 @@ const endgameRoute = [
   { id: 'philidor', number: '04', title: 'Philidor defence', level: 'Rook endings', fen: '8/8/3k4/3p4/3PK3/8/8/3r4 w - - 0 1', rule: 'Keep the enemy king from the sixth rank; once it reaches it, check from behind.', mission: 'Defence is active: use the rook’s range, not passive waiting.' },
   { id: 'wrong-bishop', number: '05', title: 'Wrong bishop', level: 'Draw knowledge', fen: 'k7/8/P1K5/8/8/8/8/2B5 w - - 0 1', rule: 'A rook pawn with a bishop of the wrong colour is drawn if the defending king reaches the corner.', mission: 'Know this before trading into it. Material advantage is not always a win.' },
   { id: 'queen-pawn', number: '06', title: 'Queen vs pawn', level: 'Precision', fen: '8/1k6/8/7P/8/6K1/8/3Q4 w - - 0 1', rule: 'Against an advanced pawn, checks and king placement matter more than grabbing it immediately.', mission: 'Keep the pawn under control while driving the king away.' },
+  { id: 'ladder-mate', number: '07', title: 'Rook ladder mate', level: 'Basic mates', fen: '7k/8/5K2/8/8/8/8/R7 w - - 0 1', rule: 'Use your king to take away escape squares, then slide the rook across ranks or files to shrink the box.', mission: 'Do not give random checks. First make the enemy king’s available rectangle smaller.' },
+  { id: 'queen-mate', number: '08', title: 'Queen mate', level: 'Basic mates', fen: '7k/8/5K2/8/8/8/8/Q7 w - - 0 1', rule: 'The queen fences the king in; your king walks close enough to deliver the protected final check.', mission: 'Box the king out, bring your king, then check only when the queen is protected.' },
 ]
 
 const planningFramework = [
