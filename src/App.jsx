@@ -709,9 +709,13 @@ function App() {
       const moves = parsed.history({ verbose: true })
       if (!moves.length) throw new Error('No moves found')
       const headers = parsed.getHeaders()
+      const recognition = openings.map((opening) => {
+        const firstMismatch = opening.moves.findIndex((san, index) => moves[index]?.san !== san)
+        return { opening, matched: firstMismatch === -1 ? opening.moves.length : firstMismatch }
+      }).filter((item) => item.matched >= 2).sort((a, b) => b.matched - a.matched)[0]
       setReview({ moves, headers, fens: [moves[0].before, ...moves.map((move) => move.after)] })
       setReviewPly(moves.length)
-      setReviewFeedback(`Loaded ${moves.length} plies. Start by naming the last irreversible decision before asking the engine.`)
+      setReviewFeedback(recognition ? `Loaded ${moves.length} plies. Opening recognition: ${recognition.opening.name} (${recognition.opening.eco}) through ${recognition.matched} plies. Now find the first irreversible decision after the book.` : `Loaded ${moves.length} plies. Start by naming the last irreversible decision before asking the engine.`)
     } catch { setReview(null); setReviewFeedback('That PGN could not be read. Export it from your chess site, then paste the full move text here.') }
   }
   function saveFocusItem() {
