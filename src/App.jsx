@@ -266,6 +266,7 @@ function App() {
   const [analysisFeedback, setAnalysisFeedback] = useState('Choose a piece, then test the candidate move you would actually play.')
   const [fenDraft, setFenDraft] = useState('')
   const [fenFeedback, setFenFeedback] = useState('Paste a FEN or choose a phase preset to open a live analysis desk.')
+  const [snapshotFeedback, setSnapshotFeedback] = useState('Export a private snapshot before moving to another browser.')
   const [tablebase, setTablebase] = useState({ status: 'idle', moves: [] })
   const [profileName, setProfileName] = useState(scoutUserFromLocation)
   const [scoutRoute, setScoutRoute] = useState(scoutUserFromLocation)
@@ -937,8 +938,10 @@ function App() {
   function resetJournal() { const next = { week: weekStamp(), minutes: {} }; localStorage.setItem('atlas-journal', JSON.stringify(next)); setJournal(next) }
   function exportStudySnapshot() {
     const payload = {
+      version: 2,
       exportedAt: new Date().toISOString(),
       product: 'First Rank',
+      repertoireIds: savedOpenings,
       repertoire: savedOpenings.map((id) => openings.find((item) => item.id === id)?.name).filter(Boolean),
       openingNotes,
       revisionItems,
@@ -946,6 +949,11 @@ function App() {
       focusItems,
       practiceJournal: journal,
       sessionHistory,
+      sessionChecks,
+      reviewedPatterns,
+      masteredEndgames,
+      masteredPlanning,
+      labReflections,
       completedTracks,
       lifetimeStats,
     }
@@ -956,6 +964,41 @@ function App() {
     link.download = `first-rank-study-${dayStamp()}.json`
     link.click()
     URL.revokeObjectURL(url)
+    setSnapshotFeedback('Snapshot downloaded. Keep it somewhere you control; it contains only your local First Rank progress.')
+  }
+  async function importStudySnapshot(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    if (file.size > 1024 * 1024) { setSnapshotFeedback('That snapshot is too large. First Rank imports JSON files up to 1 MB.'); return }
+    try {
+      const payload = JSON.parse(await file.text())
+      if (!payload || payload.product !== 'First Rank') throw new Error('not-first-rank')
+      const lists = (value, max = 120) => Array.isArray(value) ? value.slice(0, max) : []
+      const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+      const repertoireIds = lists(payload.repertoireIds || []).filter((id) => openings.some((opening) => opening.id === id))
+      const legacyRepertoire = !repertoireIds.length ? lists(payload.repertoire || []).map((name) => openings.find((opening) => opening.name === name)?.id).filter(Boolean) : repertoireIds
+      const restore = (value, setter, key, fallback) => { const next = value ?? fallback; setter(next); localStorage.setItem(key, JSON.stringify(next)) }
+      restore(legacyRepertoire, setSavedOpenings, 'atlas-repertoire', [])
+      restore(object(payload.openingNotes), setOpeningNotes, 'atlas-opening-notes', {})
+      restore(lists(payload.revisionItems, 30), setRevisionItems, 'atlas-revision-items', [])
+      restore(lists(payload.mistakes, 20), setMistakeBook, 'atlas-mistake-book', [])
+      restore(lists(payload.focusItems, 12), setFocusItems, 'atlas-focus-items', [])
+      restore(object(payload.practiceJournal), setJournal, 'atlas-journal', { week: weekStamp(), minutes: {} })
+      restore(object(payload.sessionHistory), setSessionHistory, 'atlas-session-history', {})
+      const restoredChecks = lists(payload.sessionChecks, 3)
+      setSessionChecks(restoredChecks)
+      localStorage.setItem('atlas-session-checks', JSON.stringify({ date: dayStamp(), items: restoredChecks }))
+      restore(lists(payload.reviewedPatterns, tacticPatterns.length).filter((id) => tacticPatterns.some((pattern) => pattern.id === id)), setReviewedPatterns, 'atlas-patterns', [])
+      restore(lists(payload.masteredEndgames, endgameRoute.length).filter((id) => endgameRoute.some((lesson) => lesson.id === id)), setMasteredEndgames, 'atlas-endgame-techniques', [])
+      restore(lists(payload.masteredPlanning, planningFramework.length).filter((id) => planningFramework.some((lens) => lens.id === id)), setMasteredPlanning, 'atlas-planning-lenses', [])
+      restore(lists(payload.labReflections, 8), setLabReflections, 'atlas-lab-reflections', [])
+      restore(lists(payload.completedTracks, curriculum.length).filter((id) => curriculum.some((track) => track.id === id)), setCompletedTracks, 'atlas-tracks', [])
+      restore(object(payload.lifetimeStats), setLifetimeStats, 'atlas-lifetime-stats', {})
+      setSnapshotFeedback(`Imported ${legacyRepertoire.length} repertoire line${legacyRepertoire.length === 1 ? '' : 's'} and your local training history.`)
+    } catch {
+      setSnapshotFeedback('That file is not a readable First Rank study snapshot. Nothing was changed.')
+    }
   }
   function analyseReviewPosition() {
     if (!reviewGame) return
@@ -1074,7 +1117,7 @@ function App() {
     <section className="curriculum" id="curriculum"><div className="curriculum-top"><div><p className="eyebrow">THE PATH TO STRONG CHESS</p><h2>Train what actually<br /><em>makes you dangerous.</em></h2></div><div className="completion"><span>TRACKS COMPLETE</span><strong>{completedTracks.length}<i>/</i>{curriculum.length}</strong><p>Build a balanced game. Mark a track when you’ve trained it this week.</p></div></div><div className="curriculum-grid">{curriculum.map((track) => <article key={track.id} className={completedTracks.includes(track.id) ? 'done' : ''}><div><span>{track.number}</span><small>{track.level}</small></div><h3>{track.title}</h3><p>{track.detail}</p><ul>{track.tasks.map((task) => <li key={task}>{task}</li>)}</ul><button onClick={() => toggleTrack(track.id)} aria-pressed={completedTracks.includes(track.id)}>{completedTracks.includes(track.id) ? 'Completed this week ✓' : 'Mark as trained'}</button></article>)}</div></section>
     <section className="resource-dock"><div><p className="eyebrow">THE DEEPER TOOLKIT</p><h2>Resources worth<br /><em>having open.</em></h2></div><div className="resource-list">{resourceDock.map((resource) => <a href={resource.href} target="_blank" rel="noreferrer" key={resource.name}><span>{resource.label}</span><strong>{resource.name}</strong><p>{resource.detail}</p><i>Open resource ↗</i></a>)}</div></section>
     {page === 'practice' && <section className="structure-atlas" id="structure-atlas"><div className="structure-heading"><div><p className="eyebrow">PAWN STRUCTURE ATLAS</p><h2>When the pawns<br /><em>tell the plan.</em></h2></div><p>Structures are the chessboard’s long memory. Once you recognize one, you can stop guessing and start looking for the breaks, squares, and piece trades that make sense.</p></div><div className="structure-workspace"><div className="structure-index">{pawnStructures.map((item, index) => <button className={activeStructure === item.id ? 'active' : ''} onClick={() => setActiveStructure(item.id)} key={item.id}><span>{String(index + 1).padStart(2, '0')}</span><strong>{item.title}</strong><small>{item.label}</small></button>)}</div><article className="structure-lesson"><p className="eyebrow">{pawnStructure.label}</p><h3>{pawnStructure.title}</h3><div><span>THE SIGNAL</span><p>{pawnStructure.signal}</p></div><div><span>THE PLAN</span><p>{pawnStructure.plan}</p></div><div><span>KEY BREAKS</span><strong>{pawnStructure.breaks}</strong></div><div><span>WATCH OUT</span><p>{pawnStructure.warning}</p></div><button onClick={() => navigate('analysis', 'position-desk')}>Bring a structure to analysis ↗</button></article></div></section>}
-    {page === 'learn' && <section className="study-export"><div><p className="eyebrow">YOUR STUDY, YOURS TO KEEP</p><h2>Take your<br /><em>work with you.</em></h2></div><div><p>Download a private JSON snapshot of your repertoire, field notes, revision queue, mistake book, focus items, practice journal, and boardwork ledger. Nothing is uploaded.</p><button onClick={exportStudySnapshot}>Download my study snapshot <span>↓</span></button></div></section>}
+    {page === 'learn' && <section className="study-export"><div><p className="eyebrow">YOUR STUDY, YOURS TO KEEP</p><h2>Take your<br /><em>work with you.</em></h2></div><div><p>Download a private JSON snapshot of your repertoire, field notes, recall queue, patterns, techniques, practice journal, and boardwork history. Nothing is uploaded.</p><div className="snapshot-actions"><button onClick={exportStudySnapshot}>Download my study snapshot <span>↓</span></button><label>Restore a First Rank snapshot<input type="file" accept="application/json,.json" onChange={importStudySnapshot} /></label></div><small className="snapshot-feedback">{snapshotFeedback}</small></div></section>}
     <footer><span>FIRST RANK — PLAY WITH INTENTION</span><span>Pieces: Cburnett set via Lichess · CC BY-SA</span></footer>
   </main>
 }

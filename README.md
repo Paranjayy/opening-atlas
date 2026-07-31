@@ -21,7 +21,7 @@ First Rank is a browser-first chess learning workspace: build an opening reperto
 - [ChessDB](https://www.chessdb.cn/) for current-position opening candidates
 - [Lichess](https://lichess.org/) for public profiles, rating history, TV boards, cloud evaluation, tablebases, and daily puzzles
 
-Public data is read only. Personal notes, repertoire choices, review queue, session history, and progress live locally in the browser.
+Public data is read only. Personal notes, repertoire choices, review queue, session history, and progress live locally in the browser. The Learn workspace can export and restore a private First Rank JSON snapshot for moving that local study record between browsers.
 
 ## Development
 
