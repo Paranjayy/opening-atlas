@@ -179,6 +179,11 @@ const weekStamp = () => {
   return monday.toISOString().slice(0, 10)
 }
 const dayStamp = () => new Date().toISOString().slice(0, 10)
+const recentDayStamps = (days = 7) => Array.from({ length: days }, (_, index) => {
+  const date = new Date()
+  date.setDate(date.getDate() - (days - index - 1))
+  return date.toISOString().slice(0, 10)
+})
 
 function Board({ game, orientation = 'w', onSquare, selected, lastMove }) {
   const squares = useMemo(() => {
@@ -299,6 +304,15 @@ function App() {
       const saved = JSON.parse(localStorage.getItem('atlas-session-checks') || '{}')
       return saved.date === dayStamp() && Array.isArray(saved.items) ? saved.items : []
     } catch { return [] }
+  })
+  const [sessionHistory, setSessionHistory] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('atlas-session-history') || '{}')
+      const history = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {}
+      const legacy = JSON.parse(localStorage.getItem('atlas-session-checks') || '{}')
+      if (legacy.date && Array.isArray(legacy.items) && !history[legacy.date]) history[legacy.date] = legacy.items
+      return history
+    } catch { return {} }
   })
   const [lifetimeStats, setLifetimeStats] = useState(() => {
     try {
@@ -446,6 +460,10 @@ function App() {
     ]
   }, [dueRevisions, openMistakes, leastTrained, savedOpenings])
   const completedSessionCount = dailySession.filter((item) => sessionChecks.includes(item.id)).length
+  const consistencyDays = useMemo(() => recentDayStamps().map((date) => ({ date, tasks: Array.isArray(sessionHistory[date]) ? sessionHistory[date].length : 0 })), [sessionHistory])
+  const consistentDays = consistencyDays.filter((day) => day.tasks > 0).length
+  const phaseBalance = journalAreas.map((area) => ({ ...area, minutes: journal.minutes[area.id] || 0 }))
+  const coveredPhases = phaseBalance.filter((area) => area.minutes >= 15).length
   const commandItems = useMemo(() => {
     const destinations = [
       { id: 'home', label: 'Home', detail: 'Your boardwork dashboard', run: () => navigate('home') },
@@ -569,6 +587,12 @@ function App() {
     setSessionChecks((current) => {
       const next = current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
       localStorage.setItem('atlas-session-checks', JSON.stringify({ date: dayStamp(), items: next }))
+      setSessionHistory((history) => {
+        const nextHistory = { ...history, [dayStamp()]: next }
+        const trimmed = Object.fromEntries(Object.entries(nextHistory).sort(([a], [b]) => a.localeCompare(b)).slice(-35))
+        localStorage.setItem('atlas-session-history', JSON.stringify(trimmed))
+        return trimmed
+      })
       return next
     })
   }
@@ -880,6 +904,7 @@ function App() {
       mistakes: mistakeBook,
       focusItems,
       practiceJournal: journal,
+      sessionHistory,
       completedTracks,
       lifetimeStats,
     }
@@ -1002,6 +1027,7 @@ function App() {
     <section className="capability-ladder" id="capability-ladder"><div className="ladder-heading"><div><p className="eyebrow">PICK THE RIGHT KIND OF WORK</p><h2>Meet your game<br /><em>where it is.</em></h2></div><p>You do not become strong by training advanced things too early. Choose the route that feels honest, then follow the next useful action.</p></div><div className="ladder-workspace"><div className="ladder-steps">{capabilityPaths.map((item) => <button className={activeCapability === item.id ? 'active' : ''} onClick={() => navigateLearnPath(item.id)} key={item.id}><span>{item.number}</span><strong>{item.title}</strong><small>{activeCapability === item.id ? 'Current route' : `Open /learn/${item.id}`}</small></button>)}</div><article className="ladder-detail"><p className="eyebrow">ROUTE {capability.number} · SHAREABLE PATH</p><h3>{capability.title}</h3><p>{capability.signal}</p><ul>{capability.focus.map((item) => <li key={item}>{item}</li>)}</ul><button onClick={() => navigate(capability.target.slice(1).split('-')[0] === 'position' ? 'analysis' : capability.target === '#repertoire-rail' ? 'openings' : capability.target === '#planning-compass' ? 'practice' : capability.target === '#game-review' ? 'review' : 'analysis', capability.target.slice(1))}>{capability.action} ↗</button></article></div></section>
     <section className="daily-session" id="daily-session"><div className="session-intro"><p className="eyebrow">TODAY’S TRAINING FLIGHT PLAN</p><h2>One strong session.<br /><em>Zero wandering.</em></h2><p>Built from the work that is actually waiting: your due recall, unresolved misses, and the phase you have neglected this week.</p><div className="session-count"><strong>{completedSessionCount}<i>/</i>{dailySession.length}</strong><span>sessions checked off today</span></div></div><div className="session-runway">{dailySession.map((task, index) => <article className={sessionChecks.includes(task.id) ? 'done' : ''} key={task.id}><span>{String(index + 1).padStart(2, '0')} · {task.tag}</span><h3>{task.title}</h3><p>{task.detail}</p><footer><button onClick={() => launchSessionTask(task)}>{task.action} <i>→</i></button><button className="session-check" onClick={() => toggleSessionCheck(task.id)} aria-pressed={sessionChecks.includes(task.id)}>{sessionChecks.includes(task.id) ? 'Done today ✓' : 'Check off'}</button></footer></article>)}</div></section>
     <section className="training-journal"><div className="journal-heading"><div><p className="eyebrow">THIS WEEK’S BOARDWORK</p><h2>Balance beats<br /><em>bingeing.</em></h2></div><div><strong>{journalTotal}</strong><span>minutes logged</span><p>Next up: <b>{leastTrained.label}</b> — {leastTrained.cue.toLowerCase()}.</p></div></div><div className="journal-grid">{journalAreas.map((area) => <article key={area.id}><div><span>{area.label}</span><b>{journal.minutes[area.id] || 0}<i>m</i></b></div><p>{area.cue}</p><div className="journal-track"><i style={{ width: `${Math.min(100, ((journal.minutes[area.id] || 0) / 45) * 100)}%` }}></i></div><button onClick={() => logPractice(area.id)}>Log 15 minutes +</button></article>)}</div><button className="journal-reset" onClick={resetJournal}>Reset this week</button></section>
+    <section className="consistency-board" aria-label="Training consistency and phase balance"><div className="consistency-copy"><p className="eyebrow">THE TRAINING SIGNAL</p><h2>Keep the work<br /><em>well rounded.</em></h2><p>One checked task counts as a day you showed up. Fifteen logged minutes counts as a phase you touched. The target is repeatable coverage, not an impressive-looking number.</p><div className="consistency-metrics"><span><b>{consistentDays}</b><small>of 7 active days</small></span><span><b>{coveredPhases}</b><small>of 4 phases covered</small></span></div></div><div className="consistency-data"><div className="week-strip">{consistencyDays.map((day) => <div className={day.tasks ? 'active' : ''} key={day.date}><span>{new Date(`${day.date}T00:00:00Z`).toLocaleDateString('en-US', { weekday: 'short' }).slice(0, 2)}</span><b>{day.tasks || '—'}</b><small>{day.tasks === 1 ? 'task' : day.tasks ? 'tasks' : 'rest'}</small></div>)}</div><div className="phase-strip">{phaseBalance.map((area) => <div key={area.id}><span>{area.label}</span><strong>{area.minutes}<i>m</i></strong><div><i style={{ width: `${Math.min(100, (area.minutes / 45) * 100)}%` }}></i></div><small>{area.minutes >= 15 ? 'covered' : 'next'}</small></div>)}</div></div></section>
     <section className="model-theatre"><div className="model-heading"><div><p className="eyebrow">THE MODEL ROOM</p><h2>Watch the plan<br /><em>become the move.</em></h2></div><p>Step through three compact reference sequences. The annotation changes only when the position earns a new question—so the board stays the teacher.</p></div><div className="model-tabs">{modelStudies.map((study) => <button className={activeModel === study.id ? 'active' : ''} onClick={() => { setActiveModel(study.id); setModelPly(0) }} key={study.id}><span>{study.phase}</span><strong>{study.title}</strong><small>{study.byline}</small></button>)}</div><div className="model-workspace"><div className="model-board"><div className="model-controls"><span>{modelPly} / {modelStudy.moves.length}</span><div><button disabled={!modelPly} onClick={() => setModelPly((ply) => Math.max(0, ply - 1))}>←</button><button disabled={modelPly === modelStudy.moves.length} onClick={() => setModelPly((ply) => Math.min(modelStudy.moves.length, ply + 1))}>→</button></div></div><Board game={modelGame} orientation="w" onSquare={() => {}} lastMove={modelLastMove} /><div className="model-moves">{modelStudy.moves.map((move, index) => <button onClick={() => setModelPly(index + 1)} className={index === modelPly - 1 ? 'current' : ''} key={`${move}-${index}`}>{index % 2 === 0 ? `${Math.floor(index / 2) + 1}. ` : ''}{move}</button>)}</div></div><article className="model-note"><p className="eyebrow">AT MOVE {modelPly || 'START'}</p><h3>{modelAnnotation.title}</h3><p>{modelAnnotation.text}</p><div><span>YOUR JOB</span><strong>Pause here. Say the plan before advancing the board.</strong></div><button onClick={() => openAnalysisPosition(modelGame.fen(), `${modelStudy.title} · move ${Math.ceil(modelPly / 2) || 1}`)}>Send this position to analysis ↗</button></article></div></section>
     <section className="curriculum" id="curriculum"><div className="curriculum-top"><div><p className="eyebrow">THE PATH TO STRONG CHESS</p><h2>Train what actually<br /><em>makes you dangerous.</em></h2></div><div className="completion"><span>TRACKS COMPLETE</span><strong>{completedTracks.length}<i>/</i>{curriculum.length}</strong><p>Build a balanced game. Mark a track when you’ve trained it this week.</p></div></div><div className="curriculum-grid">{curriculum.map((track) => <article key={track.id} className={completedTracks.includes(track.id) ? 'done' : ''}><div><span>{track.number}</span><small>{track.level}</small></div><h3>{track.title}</h3><p>{track.detail}</p><ul>{track.tasks.map((task) => <li key={task}>{task}</li>)}</ul><button onClick={() => toggleTrack(track.id)} aria-pressed={completedTracks.includes(track.id)}>{completedTracks.includes(track.id) ? 'Completed this week ✓' : 'Mark as trained'}</button></article>)}</div></section>
     <section className="resource-dock"><div><p className="eyebrow">THE DEEPER TOOLKIT</p><h2>Resources worth<br /><em>having open.</em></h2></div><div className="resource-list">{resourceDock.map((resource) => <a href={resource.href} target="_blank" rel="noreferrer" key={resource.name}><span>{resource.label}</span><strong>{resource.name}</strong><p>{resource.detail}</p><i>Open resource ↗</i></a>)}</div></section>
