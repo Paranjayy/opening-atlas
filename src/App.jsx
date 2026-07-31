@@ -971,7 +971,13 @@ function App() {
       parsed.loadPgn(rawPgn.trim())
       const moves = parsed.history({ verbose: true })
       if (!moves.length) throw new Error('No moves found')
-      const headers = parsed.getHeaders()
+      const rawHeaders = parsed.getHeaders()
+      const headers = {
+        ...rawHeaders,
+        White: rawHeaders.White && rawHeaders.White !== '?' ? rawHeaders.White : 'White',
+        Black: rawHeaders.Black && rawHeaders.Black !== '?' ? rawHeaders.Black : 'Black',
+        Result: rawHeaders.Result && rawHeaders.Result !== '*' ? rawHeaders.Result : 'Unfinished',
+      }
       const recognition = openings.map((opening) => {
         const firstMismatch = opening.moves.findIndex((san, index) => moves[index]?.san !== san)
         return { opening, matched: firstMismatch === -1 ? opening.moves.length : firstMismatch }
