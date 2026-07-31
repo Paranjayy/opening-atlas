@@ -67,6 +67,7 @@ const randomCoordinate = () => `${files[Math.floor(Math.random() * files.length)
 const pieceName = { p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king' }
 const pieceSrc = (piece) => `https://lichess1.org/assets/piece/cburnett/${piece.color === 'w' ? 'w' : 'b'}${piece.type.toUpperCase()}.svg`
 const workspacePages = ['home', 'openings', 'practice', 'analysis', 'review', 'scout', 'learn']
+const practiceRouteTargets = { tactics: 'puzzle-zone', middlegame: 'game-lab', structures: 'structure-atlas', endgames: 'endgame-route' }
 const revisionIntervals = [1, 3, 7, 14, 30]
 const pageFromLocation = () => {
   const page = window.location.pathname.split('/').filter(Boolean)[0] || 'home'
@@ -75,6 +76,10 @@ const pageFromLocation = () => {
 const openingFromLocation = () => {
   const [, openingId] = window.location.pathname.split('/').filter(Boolean)
   return openings.some((opening) => opening.id === openingId) ? openingId : 'sicilian'
+}
+const practiceTargetFromLocation = () => {
+  const [page, route] = window.location.pathname.split('/').filter(Boolean)
+  return page === 'practice' ? practiceRouteTargets[route] || null : null
 }
 const sharedAnalysisFromLocation = () => {
   if (pageFromLocation() !== 'analysis') return null
@@ -432,6 +437,10 @@ function App() {
       { id: 'home', label: 'Home', detail: 'Your boardwork dashboard', run: () => navigate('home') },
       { id: 'openings', label: 'Openings', detail: 'Repertoire, lines, plans, and defence', run: () => navigate('openings') },
       { id: 'practice', label: 'Practice', detail: 'Tactics, middlegames, structures, and endgames', run: () => navigate('practice') },
+      { id: 'practice-tactics', label: 'Daily tactics', detail: 'Practice · calculate forcing moves', run: () => navigatePractice('tactics') },
+      { id: 'practice-middlegame', label: 'Middlegame lab', detail: 'Practice · choose a plan and pawn break', run: () => navigatePractice('middlegame') },
+      { id: 'practice-structures', label: 'Pawn structure atlas', detail: 'Practice · recognize long-term plans', run: () => navigatePractice('structures') },
+      { id: 'practice-endgames', label: 'Endgame route', detail: 'Practice · convert exact positions', run: () => navigatePractice('endgames') },
       { id: 'analysis', label: 'Analysis desk', detail: 'Test a FEN, candidate move, or tablebase position', run: () => navigate('analysis') },
       { id: 'review', label: 'Game review', detail: 'Paste a PGN and turn a game into practice', run: () => navigate('review') },
       { id: 'scout', label: 'Scout', detail: 'Read a public Lichess profile', run: () => navigate('scout') },
@@ -451,6 +460,14 @@ function App() {
       if (target) document.querySelector(`#${target}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       else window.scrollTo({ top: 0, behavior: 'smooth' })
     })
+  }
+  function navigatePractice(route) {
+    const target = practiceRouteTargets[route]
+    if (!target) return
+    const pathname = `/practice/${route}`
+    if (window.location.pathname !== pathname) window.history.pushState({}, '', pathname)
+    setPage('practice')
+    requestAnimationFrame(() => document.querySelector(`#${target}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
   function selectOpening(id) {
     const pathname = `/openings/${id}`
@@ -595,10 +612,16 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyboard)
   }, [opening.moves.length, previousMove, nextLineMove, flipBoard, commandOpen, commandItems, commandIndex])
   useEffect(() => {
-    const syncPage = () => { setPage(pageFromLocation()); setOpeningId(openingFromLocation()); setAnalysisPosition(sharedAnalysisFromLocation()) }
+    const syncPage = () => { const nextPage = pageFromLocation(); setPage(nextPage); setOpeningId(openingFromLocation()); setAnalysisPosition(sharedAnalysisFromLocation()); const target = practiceTargetFromLocation(); if (nextPage === 'practice' && target) requestAnimationFrame(() => document.querySelector(`#${target}`)?.scrollIntoView({ behavior: 'auto', block: 'start' })) }
     window.addEventListener('popstate', syncPage)
     return () => window.removeEventListener('popstate', syncPage)
   }, [])
+  useEffect(() => {
+    const target = practiceTargetFromLocation()
+    if (page !== 'practice' || !target) return
+    const timer = window.setTimeout(() => document.querySelector(`#${target}`)?.scrollIntoView({ behavior: 'auto', block: 'start' }), 300)
+    return () => window.clearTimeout(timer)
+  }, [page])
   useEffect(() => {
     const controller = new AbortController()
     setIntelligence({ status: 'loading', moves: [] })

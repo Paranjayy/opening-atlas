@@ -8,6 +8,7 @@ First Rank is a browser-first chess learning workspace: build an opening reperto
 - `/openings` — opening atlas and drills
 - `/openings/:openingId` — a shareable opening study, such as `/openings/sicilian`
 - `/practice` — tactics, pawn structures, middlegame labs, and endgame routes
+- `/practice/:route` — a direct practice destination: `tactics`, `middlegame`, `structures`, or `endgames`
 - `/analysis?fen=...` — a shareable FEN position with ChessDB, cloud engine, and tablebase tools
 - `/review` — local PGN review and training-focus capture
 - `/scout` — public Lichess profile, format, and rating-history context
